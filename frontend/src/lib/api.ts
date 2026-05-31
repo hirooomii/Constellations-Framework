@@ -2,7 +2,7 @@ import { AuthSession, Card, Comment, Reaction } from '@/types';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
-// ── Session helpers (localStorage) ────────────────────────────────────────
+// ── Session helpers ────────────────────────────────────────────────────────
 export function getSession(): AuthSession | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -19,7 +19,6 @@ export function clearSession() {
   localStorage.removeItem('constellation_session');
 }
 
-// Anonymous ID for guest reactions
 export function getAnonId(): string {
   let id = localStorage.getItem('constellation_anon_id');
   if (!id) {
@@ -47,7 +46,6 @@ async function apiFetch<T>(
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
 
-  // Try token refresh on 401
   if (res.status === 401 && session?.refresh_token) {
     const refreshed = await tryRefresh(session.refresh_token);
     if (refreshed) {
@@ -85,10 +83,10 @@ async function tryRefresh(refreshToken: string): Promise<AuthSession | null> {
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 export const auth = {
-  async register(email: string, password: string) {
+  async register(email: string, password: string, username: string, displayName: string) {
     return apiFetch('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, username, display_name: displayName }),
     });
   },
 
@@ -101,12 +99,18 @@ export const auth = {
     return session;
   },
 
-  logout() {
-    clearSession();
-  },
-
+  logout() { clearSession(); },
   getSession,
   getUser: () => getSession()?.user ?? null,
+};
+
+// ── Profiles ───────────────────────────────────────────────────────────────
+export const profiles = {
+  get: (username: string) =>
+    apiFetch<{ profile: any; cards: Card[] }>(`/profiles/${username}`),
+
+  update: (data: { display_name?: string; bio?: string; avatar_url?: string }) =>
+    apiFetch('/profiles', { method: 'PATCH', body: JSON.stringify(data) }, true),
 };
 
 // ── Cards ──────────────────────────────────────────────────────────────────
@@ -121,28 +125,41 @@ export const cards = {
     apiFetch('/admin/cards/scheduled', {}, true),
 
   create: (data: Partial<Card>): Promise<Card> =>
-    apiFetch('/admin/cards', { method: 'POST', body: JSON.stringify(data) }, true),
+    apiFetch('/cards', { method: 'POST', body: JSON.stringify(data) }, true),
 
   update: (id: string, data: Partial<Card>): Promise<Card> =>
-    apiFetch(`/admin/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, true),
+    apiFetch(`/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, true),
 
   delete: (id: string): Promise<void> =>
-    apiFetch(`/admin/cards/${id}`, { method: 'DELETE' }, true),
+    apiFetch(`/cards/${id}`, { method: 'DELETE' }, true),
 
   publishNow: (id: string): Promise<Card> =>
-    apiFetch(`/admin/cards/${id}/publish-now`, { method: 'PATCH' }, true),
+    apiFetch(`/cards/${id}/publish-now`, { method: 'PATCH' }, true),
+
+  toggleComments: (id: string): Promise<Card> =>
+    apiFetch(`/cards/${id}/toggle-comments`, { method: 'PATCH' }, true),
 };
 
 // ── Reactions ──────────────────────────────────────────────────────────────
+export const REACTION_TYPES = [
+  { type: 'touched',   emoji: '🌸', label: 'Touched'   },
+  { type: 'magical',   emoji: '💫', label: 'Magical'   },
+  { type: 'brilliant', emoji: '🌟', label: 'Brilliant' },
+  { type: 'beautiful', emoji: '⭐', label: 'Beautiful' },
+  { type: 'dreamy',    emoji: '🌙', label: 'Dreamy'    },
+  { type: 'powerful',  emoji: '☄️', label: 'Powerful'  },
+] as const;
+
+export type ReactionType = typeof REACTION_TYPES[number]['type'];
+
 export const reactions = {
   get: (cardId: string): Promise<Reaction> =>
     apiFetch(`/cards/${cardId}/reactions`),
 
-  toggle: (cardId: string, reactionType = 'heart'): Promise<Reaction & { action: string }> => {
+  toggle: (cardId: string, reactionType: ReactionType) => {
     const session = getSession();
     const userIdentifier = session?.user?.id ?? getAnonId();
     const hasToken = !!session?.access_token;
-
     return apiFetch(
       `/cards/${cardId}/reactions`,
       {

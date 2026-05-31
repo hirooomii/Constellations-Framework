@@ -5,12 +5,14 @@ import { Card } from '@/types';
 interface CardGridProps {
   cards: Card[];
   isAdmin: boolean;
+  currentUserId?: string;
   onCardClick: (card: Card) => void;
   onEdit: (card: Card) => void;
   onDelete: (card: Card) => void;
+  onAuthorClick?: (username: string) => void;
 }
 
-export default function CardGrid({ cards, isAdmin, onCardClick, onEdit, onDelete }: CardGridProps) {
+export default function CardGrid({ cards, isAdmin, currentUserId, onCardClick, onEdit, onDelete, onAuthorClick }: CardGridProps) {
   const [visible, setVisible] = useState<Set<string>>(new Set());
   const refs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -29,6 +31,14 @@ export default function CardGrid({ cards, isAdmin, onCardClick, onEdit, onDelete
     return () => observer.disconnect();
   }, [cards]);
 
+  function getImageSrc(url: string | null | undefined): string {
+    if (!url) return 'https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif';
+    if (url.includes('lh3.googleusercontent.com')) {
+      return url.replace('https://lh3.googleusercontent.com', '/img-proxy');
+    }
+    return url;
+  }
+
   if (cards.length === 0) {
     return (
       <div style={s.grid}>
@@ -43,8 +53,11 @@ export default function CardGrid({ cards, isAdmin, onCardClick, onEdit, onDelete
   return (
     <div style={s.grid}>
       {cards.map((card, i) => {
-        const isVis = visible.has(card.id);
-        const hearts = card.hearts || 0;
+        const isVis    = visible.has(card.id);
+        const isOwner  = !!currentUserId && card.author_id === currentUserId;
+        const canEdit  = isAdmin || isOwner;
+        const totalReactions = card.hearts || 0;
+
         return (
           <div
             key={card.id}
@@ -58,27 +71,28 @@ export default function CardGrid({ cards, isAdmin, onCardClick, onEdit, onDelete
             }}
             onClick={() => onCardClick(card)}
           >
-            <img
-              src={card.image_url || 'https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif'}
-              alt={card.title}
-              style={s.media}
-            />
+            <img src={getImageSrc(card.image_url)} alt={card.title} style={s.media} />
             <div style={s.noise} />
             <div style={s.overlay} />
 
-            {/* Heart count */}
+            {/* Stats */}
             <div style={s.stats}>
               <div style={s.statPill}>
-                <svg width="10" height="10" fill={hearts > 0 ? '#e05555' : 'none'} stroke={hearts > 0 ? '#e05555' : 'rgba(255,255,255,.7)'} strokeWidth="2" viewBox="0 0 24 24">
+                <svg width="10" height="10" fill={totalReactions > 0 ? '#e05555' : 'none'} stroke={totalReactions > 0 ? '#e05555' : 'rgba(255,255,255,.7)'} strokeWidth="2" viewBox="0 0 24 24">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                 </svg>
-                {hearts}
+                {totalReactions}
               </div>
+              {!card.comments_enabled && (
+                <div style={s.statPill} title="Comments disabled">
+                  🔇
+                </div>
+              )}
             </div>
 
-            {/* Admin actions */}
-            {isAdmin && (
-              <div style={s.adminActions} className="card-admin-actions">
+            {/* Edit/Delete actions (owner or admin) */}
+            {canEdit && (
+              <div style={s.adminActions}>
                 <button
                   style={s.actionBtn}
                   onClick={e => { e.stopPropagation(); onEdit(card); }}
@@ -96,6 +110,23 @@ export default function CardGrid({ cards, isAdmin, onCardClick, onEdit, onDelete
             <div style={s.content}>
               <div style={s.cardDate}>{card.display_date || ''}</div>
               <div style={s.cardTitle}>{card.title}</div>
+
+              {/* Author */}
+              {card.author_display_name && (
+                <button
+                  style={s.authorBtn}
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (card.author_username) onAuthorClick?.(card.author_username);
+                  }}
+                >
+                  {card.author_display_name}
+                  {card.author_username && (
+                    <span style={s.authorUsername}> @{card.author_username}</span>
+                  )}
+                </button>
+              )}
+
               <div style={s.cardDesc}>{card.description || ''}</div>
               <div style={s.readMore}>
                 Read poem{' '}
@@ -139,7 +170,9 @@ const s: Record<string, React.CSSProperties> = {
   actionBtnDel: { borderColor: 'rgba(200,50,50,.3)', color: '#e07070' },
   content: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '1.2rem', zIndex: 4 },
   cardDate: { fontSize: '.65rem', letterSpacing: '.15em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '.4rem', opacity: .8 },
-  cardTitle: { fontFamily: "'Playfair Display', serif", fontSize: '1.3rem', lineHeight: 1.2 },
-  cardDesc: { fontSize: '.78rem', color: 'var(--text-muted)', marginTop: '.4rem', lineHeight: 1.5 },
+  cardTitle: { fontFamily: "'Playfair Display', serif", fontSize: '1.3rem', lineHeight: 1.2, marginBottom: '.3rem' },
+  authorBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '.7rem', color: 'rgba(255,255,255,.7)', fontFamily: "'DM Sans', sans-serif", marginBottom: '.3rem', display: 'block', textAlign: 'left' },
+  authorUsername: { color: 'rgba(201,168,76,.6)', fontSize: '.65rem' },
+  cardDesc: { fontSize: '.78rem', color: 'var(--text-muted)', marginTop: '.2rem', lineHeight: 1.5 },
   readMore: { display: 'flex', alignItems: 'center', gap: '.4rem', marginTop: '.6rem', fontSize: '.72rem', letterSpacing: '.08em', color: 'var(--gold)' },
 };

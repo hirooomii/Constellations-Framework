@@ -1,8 +1,11 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/types';
 import { cards as cardsApi } from '@/lib/api';
 import { format, parseISO } from 'date-fns';
+
+const CLOUDINARY_CLOUD = 'dky9pzz0r';
+const CLOUDINARY_PRESET = 'constellation_uploads';
 
 interface CardFormModalProps {
   open: boolean;
@@ -23,8 +26,24 @@ function formatDisplayDate(raw: string): string {
   try { return format(parseISO(raw + 'T00:00:00'), 'MMMM d, yyyy'); } catch { return raw; }
 }
 
+async function uploadToCloudinary(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_PRESET);
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
+    { method: 'POST', body: formData }
+  );
+
+  if (!res.ok) throw new Error('Image upload failed');
+  const data = await res.json();
+  return data.secure_url;
+}
+
 export default function CardFormModal({ open, onClose, onSaved, toast, editCard }: CardFormModalProps) {
   const isEdit = !!editCard;
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [title, setTitle] = useState('');
   const [poem, setPoem] = useState('');
@@ -35,6 +54,8 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
   const [schedDate, setSchedDate] = useState('');
   const [schedTime, setSchedTime] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -44,10 +65,11 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
       setPoem(editCard.poem);
       setDesc(editCard.description || '');
       setImgUrl(editCard.image_url || '');
+      setPreview(editCard.image_url || '');
       setDisplayDate(toInputDate(editCard.display_date));
       setPublishMode('now');
     } else {
-      setTitle(''); setPoem(''); setDesc(''); setImgUrl('');
+      setTitle(''); setPoem(''); setDesc(''); setImgUrl(''); setPreview('');
       setDisplayDate(new Date().toISOString().split('T')[0]);
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       setSchedDate(tomorrow.toISOString().split('T')[0]);
@@ -59,6 +81,33 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
   }, [open, editCard]);
 
   if (!open) return null;
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Show local preview immediately
+    const localUrl = URL.createObjectURL(file);
+    setPreview(localUrl);
+
+    setUploading(true);
+    try {
+      const cloudUrl = await uploadToCloudinary(file);
+      setImgUrl(cloudUrl);
+      setPreview(cloudUrl);
+      toast('Image uploaded ✦');
+    } catch {
+      setError('Image upload failed. Try pasting a URL instead.');
+      setPreview('');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleUrlChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setImgUrl(e.target.value);
+    setPreview(e.target.value);
+  }
 
   async function handleSubmit() {
     setError('');
@@ -122,9 +171,44 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
         <div style={s.body}>
           {error && <div style={s.errorBox}>{error}</div>}
 
-          <Field label="Image / GIF URL">
-            <input style={s.input} type="url" placeholder="Paste image or GIF URL…" value={imgUrl} onChange={e => setImgUrl(e.target.value)} />
+          {/* Image Upload */}
+          <Field label="Image">
+            <div style={s.uploadArea} onClick={() => fileInputRef.current?.click()}>
+              {preview ? (
+                <img src={preview} alt="preview" style={s.previewImg} />
+              ) : (
+                <div style={s.uploadPlaceholder}>
+                  <div style={{ fontSize: '1.5rem', marginBottom: '.3rem' }}>📷</div>
+                  <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>
+                    {uploading ? 'Uploading…' : 'Click to upload image'}
+                  </div>
+                </div>
+              )}
+              {uploading && (
+                <div style={s.uploadingOverlay}>
+                  <div style={{ fontSize: '.8rem', color: 'var(--gold)' }}>Uploading…</div>
+                </div>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
+            <div style={{ marginTop: '.5rem', fontSize: '.7rem', color: 'var(--text-muted)' }}>
+              Or paste a URL directly:
+            </div>
+            <input
+              style={{ ...s.input, marginTop: '.35rem' }}
+              type="url"
+              placeholder="https://..."
+              value={imgUrl}
+              onChange={handleUrlChange}
+            />
           </Field>
+
           <Field label="Title">
             <input style={s.input} placeholder="Give your verse a name…" value={title} onChange={e => setTitle(e.target.value)} />
           </Field>
@@ -173,11 +257,11 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
           )}
 
           <button
-            style={{ ...s.submitBtn, ...(publishMode === 'schedule' && !isEdit ? s.submitBlue : {}), opacity: loading ? 0.6 : 1 }}
+            style={{ ...s.submitBtn, ...(publishMode === 'schedule' && !isEdit ? s.submitBlue : {}), opacity: loading || uploading ? 0.6 : 1 }}
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || uploading}
           >
-            {loading ? 'Saving…' : isEdit ? '✦ Save Changes' : publishMode === 'schedule' ? '⏰ Schedule Verse' : '✦ Publish Verse'}
+            {loading ? 'Saving…' : uploading ? 'Uploading image…' : isEdit ? '✦ Save Changes' : publishMode === 'schedule' ? '⏰ Schedule Verse' : '✦ Publish Verse'}
           </button>
         </div>
       </div>
@@ -216,7 +300,11 @@ const s: Record<string, React.CSSProperties> = {
   body: { padding: '1.3rem 1.8rem', overflowY: 'auto', flex: 1 },
   errorBox: { fontSize: '.78rem', color: '#e07070', background: 'rgba(200,50,50,.1)', border: '1px solid rgba(200,50,50,.2)', borderRadius: '8px', padding: '.5rem .8rem', marginBottom: '.8rem', textAlign: 'center' },
   input: { width: '100%', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(201,168,76,.15)', borderRadius: '9px', padding: '.65rem .9rem', color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", fontSize: '.88rem', outline: 'none' },
-  modePill: { display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.45rem .9rem', borderRadius: '50px', border: '1px solid rgba(201,168,76,.2)', color: 'var(--text-muted)', fontSize: '.78rem', cursor: 'pointer', background: 'transparent', fontFamily: "'DM Sans', sans-serif', transition: 'all .25s'" },
+  uploadArea: { width: '100%', height: '160px', border: '1.5px dashed rgba(201,168,76,.25)', borderRadius: '11px', cursor: 'pointer', overflow: 'hidden', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,.02)', transition: 'border-color .25s' },
+  uploadPlaceholder: { textAlign: 'center' },
+  previewImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  uploadingOverlay: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  modePill: { display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.45rem .9rem', borderRadius: '50px', border: '1px solid rgba(201,168,76,.2)', color: 'var(--text-muted)', fontSize: '.78rem', cursor: 'pointer', background: 'transparent', fontFamily: "'DM Sans', sans-serif" },
   schedBox: { background: 'rgba(106,159,192,.04)', border: '1px solid rgba(106,159,192,.15)', borderRadius: '10px', padding: '.9rem 1rem', marginBottom: '.85rem' },
   schedNote: { fontSize: '.7rem', color: 'var(--text-muted)', marginTop: '.5rem', fontStyle: 'italic' },
   submitBtn: { padding: '.8rem 2rem', borderRadius: '50px', border: 'none', fontFamily: "'DM Sans', sans-serif", fontSize: '.88rem', fontWeight: 500, cursor: 'pointer', background: 'linear-gradient(135deg,var(--gold),#8b6914)', color: 'var(--dark)', transition: 'opacity .25s' },
