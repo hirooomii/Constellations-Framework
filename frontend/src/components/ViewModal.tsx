@@ -177,8 +177,15 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
               style={s.authorRow}
               onClick={() => card.author_username && onProfileClick?.(card.author_username)}
             >
-              <div style={{ ...s.authorAvatar, background: getAvatarColor(card.author_display_name) }}>
-                {getInitial(card.author_display_name)}
+              <div style={{ 
+                ...s.authorAvatar, 
+                background: card.author_avatar_url ? 'transparent' : getAvatarColor(card.author_display_name),
+                overflow: 'hidden'
+              }}>
+                {card.author_avatar_url
+                  ? <img src={card.author_avatar_url} alt={card.author_display_name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                  : getInitial(card.author_display_name)
+                }
               </div>
               <div style={s.authorInfo}>
                 <span style={s.authorName}>{card.author_display_name}</span>

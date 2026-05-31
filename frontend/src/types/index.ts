@@ -28,7 +28,10 @@ export interface Card {
   author_id?: string;
   author_username?: string;
   author_display_name?: string;
+  author_avatar_url?: string; 
   comments_enabled?: boolean;
+  reaction_count?: number;
+  reaction_counts?: Record<string, number>;
   last_edited_at?: string | null;
 }
 
