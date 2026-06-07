@@ -1,0 +1,15 @@
+# Laravel
+vendor/
+.env
+bootstrap/cache/*.php
+storage/logs/*.log
+storage/framework/cache/
+storage/framework/sessions/
+storage/framework/views/
+
+# Testing
+.phpunit.cache
+
+# Misc
+.DS_Store
+test.php

@@ -1,0 +1,70 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use App\Services\SupabaseService;
+
+class FollowController extends Controller
+{
+    public function __construct(private SupabaseService $supabase) {}
+
+    public function toggle(Request $request, string $username): JsonResponse
+    {
+        $currentUser = $request->supabaseUser;
+
+        $profile = $this->supabase->getProfileByUsername($username);
+        if (!$profile) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        $followingId = $profile['id'];
+        $followerId  = $currentUser['id'];
+
+        if ($followerId === $followingId) {
+            return response()->json(['error' => 'Cannot follow yourself'], 422);
+        }
+
+        $isFollowing = $this->supabase->isFollowing($followerId, $followingId);
+
+        if ($isFollowing) {
+            $this->supabase->unfollowUser($followerId, $followingId);
+            return response()->json([
+                'action'    => 'unfollowed',
+                'username'  => $username,
+            ]);
+        } else {
+            $this->supabase->followUser($followerId, $followingId);
+            return response()->json([
+                'action'    => 'followed',
+                'username'  => $username,
+            ]);
+        }
+    }
+
+    public function status(Request $request, string $username): JsonResponse
+    {
+        $currentUser = $request->supabaseUser;
+
+        $profile = $this->supabase->getProfileByUsername($username);
+        if (!$profile) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        $isFollowing = $this->supabase->isFollowing($currentUser['id'], $profile['id']);
+
+        return response()->json([
+            'is_following'    => $isFollowing,
+            'followers_count' => $profile['followers_count'] ?? 0,
+            'following_count' => $profile['following_count'] ?? 0,
+        ]);
+    }
+
+    public function following(Request $request): JsonResponse
+    {
+        $currentUser = $request->supabaseUser;
+        $followingIds = $this->supabase->getFollowing($currentUser['id']);
+        return response()->json(['following' => $followingIds]);
+    }
+}

@@ -1,0 +1,183 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Http;
+use App\Services\SupabaseService;
+
+class AuthController extends Controller
+{
+    private string $supabaseUrl;
+    private string $serviceKey;
+    private SupabaseService $supabase;
+
+    public function __construct(SupabaseService $supabase)
+    {
+        $this->supabaseUrl = env('SUPABASE_URL');
+        $this->serviceKey  = env('SUPABASE_SERVICE_KEY');
+        $this->supabase    = $supabase;
+    }
+
+    private function http()
+    {
+        return Http::withoutVerifying()->withHeaders([
+            'apikey'       => $this->serviceKey,
+            'Content-Type' => 'application/json',
+        ]);
+    }
+
+    public function register(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email'        => 'required|email',
+            'password'     => 'required|min:8',
+            'username'     => 'required|string|min:3|max:30|alpha_dash',
+            'display_name' => 'required|string|min:1|max:50',
+        ]);
+
+        // Check username taken
+        $existing = $this->supabase->getProfileByUsername($data['username']);
+        if ($existing) {
+            return response()->json(['error' => 'Username already taken.'], 422);
+        }
+
+        // Sign up via Supabase Auth
+        $res = $this->http()->post("{$this->supabaseUrl}/auth/v1/signup", [
+            'email'    => $data['email'],
+            'password' => $data['password'],
+            'data'     => [
+                'role'         => 'registered',
+                'username'     => $data['username'],
+                'display_name' => $data['display_name'],
+            ],
+        ]);
+
+        if (!$res->successful()) {
+            $body = $res->json();
+            return response()->json([
+                'error' => $body['msg'] ?? $body['error_description'] ?? 'Registration failed',
+            ], $res->status());
+        }
+
+        $user = $res->json();
+        $userId = $user['id'] ?? null;
+
+        // Create profile record
+        if ($userId) {
+            try {
+                $this->supabase->insertProfile([
+                    'id'           => $userId,
+                    'username'     => $data['username'],
+                    'display_name' => $data['display_name'],
+                    'avatar_url'   => null,
+                    'bio'          => null,
+                ]);
+            } catch (\Exception $e) {
+                // Profile creation failed but user was created
+            }
+        }
+
+        return response()->json([
+            'message' => 'Registration successful. Please check your email to confirm your account.',
+        ], 201);
+    }
+
+    public function login(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email'    => 'required|email',
+            'password' => 'required',
+        ]);
+
+        $res = $this->http()->post("{$this->supabaseUrl}/auth/v1/token?grant_type=password", [
+            'email'    => $data['email'],
+            'password' => $data['password'],
+        ]);
+
+        if (!$res->successful()) {
+            return response()->json(['error' => 'Invalid credentials'], 401);
+        }
+
+        $session = $res->json();
+
+        $userRes = Http::withoutVerifying()->withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$session['access_token']}",
+        ])->get("{$this->supabaseUrl}/auth/v1/user");
+
+        $user = $userRes->json();
+        $role = $user['user_metadata']['role'] ?? 'registered';
+
+        // Fetch profile
+       $profile = $this->supabase->getProfile($user['id']);
+
+        return response()->json([
+            'access_token'  => $session['access_token'],
+            'refresh_token' => $session['refresh_token'],
+            'expires_in'    => $session['expires_in'],
+            'user' => [
+                'id'             => $user['id'],
+                'email'          => $user['email'],
+                'role'           => $role,
+                'username'       => $profile['username'] ?? null,
+                'display_name'   => $profile['display_name'] ?? null,
+                'avatar_url'     => $profile['avatar_url'] ?? null,
+                'bio'            => $profile['bio'] ?? null,
+                'birthday'       => $profile['birthday'] ?? null,        // ← add
+                'zodiac_sign'    => $profile['zodiac_sign'] ?? null,     // ← add
+                'birthday_public'=> $profile['birthday_public'] ?? true, // ← add
+            ],
+        ]);
+    }
+
+    public function refresh(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'refresh_token' => 'required|string',
+        ]);
+
+        $res = $this->http()->post("{$this->supabaseUrl}/auth/v1/token?grant_type=refresh_token", [
+            'refresh_token' => $data['refresh_token'],
+        ]);
+
+        if (!$res->successful()) {
+            return response()->json(['error' => 'Failed to refresh token'], 401);
+        }
+
+        return response()->json($res->json());
+    }
+
+    public function me(Request $request): JsonResponse
+    {
+        $user = $request->supabaseUser;
+        $profile = $this->supabase->getProfile($user['id']);
+        return response()->json(['user' => array_merge($user, $profile ?? [])]);
+    }
+
+    public function setAdmin(Request $request): JsonResponse
+    {
+        if ($request->header('X-Admin-Setup-Key') !== env('ADMIN_SETUP_KEY')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $data = $request->validate([
+            'user_id' => 'required|string',
+        ]);
+
+        $res = Http::withoutVerifying()->withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+            'Content-Type'  => 'application/json',
+        ])->put("{$this->supabaseUrl}/auth/v1/admin/users/{$data['user_id']}", [
+            'user_metadata' => ['role' => 'admin'],
+        ]);
+
+        if (!$res->successful()) {
+            return response()->json(['error' => 'Failed to set admin role'], 500);
+        }
+
+        return response()->json(['message' => 'User promoted to admin']);
+    }
+}

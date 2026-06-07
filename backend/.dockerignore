@@ -1,0 +1,10 @@
+vendor/
+node_modules/
+.env
+.git
+.gitignore
+*.log
+storage/logs/*
+bootstrap/cache/*.php
+tests/
+README.md
