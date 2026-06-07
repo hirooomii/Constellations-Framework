@@ -36,14 +36,11 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy composer files first (layer caching)
-COPY backend/composer.json ./
+# Copy ALL files first
+COPY . .
 
-# Install PHP dependencies (no dev, optimized)
-RUN composer install --no-dev --optimize-autoloader --no-scripts --no-interaction
-
-# Copy the rest of the backend app
-COPY backend/ .
+# Install PHP dependencies
+RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # Copy nginx config
 COPY docker/nginx.conf /etc/nginx/nginx.conf
