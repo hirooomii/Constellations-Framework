@@ -42,14 +42,10 @@ COPY . .
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# Copy nginx config
-COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY backend/docker/nginx.conf /etc/nginx/nginx.conf
+COPY backend/docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY backend/docker/entrypoint.sh /entrypoint.sh
 
-# Copy supervisor config
-COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-# Copy entrypoint script
-COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Set permissions
