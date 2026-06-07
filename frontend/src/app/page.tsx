@@ -31,22 +31,31 @@ function HomeInner() {
 
   // Particles
   const particlesRef = useRef<HTMLDivElement>(null);
+  const [feedMode, setFeedMode] = useState<'guest' | 'feed' | 'all'>('all');
+  const [feedMessage, setFeedMessage] = useState('');
 
-  // ── Data loading ───────────────────────────────────────────────────────────
-  const loadPublished = useCallback(async () => {
-    try {
-      const data = await cardsApi.list();
-      setPublishedCards(data);
-    } catch { showToast('Error loading verses'); }
-  }, [showToast]);
+const loadPublished = useCallback(async () => {
+  try {
+    const data = await cardsApi.list();
+    // Handle new response format
+    if (data && typeof data === 'object' && 'cards' in data) {
+      setPublishedCards((data as any).cards);
+      setFeedMode((data as any).mode);
+      setFeedMessage((data as any).message || '');
+    } else {
+      // Fallback for array response
+      setPublishedCards(data as any);
+    }
+  } catch { showToast('Error loading verses'); }
+}, [showToast]);
 
-  const loadScheduled = useCallback(async () => {
-    if (!isAdmin && !isRegistered) return;
-    try {
-      const data = await cardsApi.scheduledList();
-      setScheduledCards(data);
-    } catch { /* silent */ }
-  }, [isAdmin, isRegistered]);
+const loadScheduled = useCallback(async () => {
+  if (!isAdmin) return; // ← only admin, not isRegistered
+  try {
+    const data = await cardsApi.scheduledList();
+    setScheduledCards(data);
+  } catch { /* silent */ }
+}, [isAdmin]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -182,7 +191,24 @@ function HomeInner() {
         </div>
       )}
 
-      <p style={s.sectionFade}>↓ Scroll to explore ↓</p>
+    <p style={s.sectionFade}>↓ Scroll to explore ↓</p>
+    {/* Feed mode banner */}
+    {feedMessage && (
+      <div style={s.feedBanner}>
+        <span style={s.feedBannerIcon}>
+          {feedMode === 'guest' ? '👁' : feedMode === 'feed' ? '✦' : '🌟'}
+        </span>
+        <span style={s.feedBannerText}>{feedMessage}</span>
+        {feedMode === 'guest' && (
+          <button style={s.feedBannerBtn} onClick={openRegister}>Join Free</button>
+        )}
+        {feedMode === 'all' && isRegistered && (
+          <button style={s.feedBannerBtn} onClick={() => showToast('Find poets to follow!')}>
+            Discover Poets
+          </button>
+        )}
+      </div>
+    )}
 
       {/* Schedule queue (admin + registered users see their own) */}
       {(isAdmin || isRegistered) && scheduledCards.length > 0 && (
@@ -270,6 +296,19 @@ export default function Home() {
 }
 
 const s: Record<string, React.CSSProperties> = {
+  feedBanner: {
+    position: 'relative',
+    zIndex: 10,
+    maxWidth: '1300px',
+    margin: '0 auto 1.5rem',
+    padding: '0 1.5rem',
+    display: 'flex',        // ← add
+    alignItems: 'center',   // ← add
+    gap: '.5rem',           // ← add
+  },
+  feedBannerText: { fontSize: '.78rem', color: 'var(--text-muted)' },
+  feedBannerIcon: { fontSize: '.9rem' },
+  feedBannerBtn: { fontSize: '.72rem', padding: '.25rem .75rem', borderRadius: '50px', border: '1px solid rgba(201,168,76,.3)', background: 'transparent', color: 'var(--gold)', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" },
   authCorner: { position: 'fixed', top: '1rem', right: '1rem', zIndex: 200, display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '320px' },
   profileBtn: { display: 'flex', alignItems: 'center', gap: '.5rem', background: 'rgba(0,0,0,.55)', border: '1px solid rgba(201,168,76,.15)', borderRadius: '50px', padding: '.3rem .7rem .3rem .3rem', backdropFilter: 'blur(8px)', cursor: 'pointer', textAlign: 'left' },
   avatarThumb: { width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 },

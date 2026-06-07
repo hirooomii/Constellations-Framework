@@ -56,5 +56,8 @@ export interface Profile {
   display_name: string;
   avatar_url?: string;
   bio?: string;
+  birthday?: string;
+  zodiac_sign?: string;
+  birthday_public?: boolean;
   created_at?: string;
 }

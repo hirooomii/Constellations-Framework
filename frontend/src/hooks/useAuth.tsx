@@ -2,7 +2,16 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { User, AuthSession } from '@/types';
-import { auth as authApi, getSession, clearSession, profiles } from '@/lib/api';
+import { auth as authApi, getSession, clearSession, saveSession, profiles } from '@/lib/api';
+
+interface UpdateProfileData {
+  display_name?: string;
+  bio?: string;
+  avatar_url?: string;
+  birthday?: string;
+  zodiac_sign?: string;
+  birthday_public?: boolean;
+}
 
 interface AuthContextValue {
   user: User | null;
@@ -11,7 +20,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, username: string, displayName: string, avatarUrl?: string) => Promise<void>;
   logout: () => void;
-  updateProfile: (data: { display_name?: string; bio?: string; avatar_url?: string }) => Promise<void>;
+  updateProfile: (data: UpdateProfileData) => Promise<void>;
   isAdmin: boolean;
   isRegistered: boolean;
 }
@@ -41,11 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     avatarUrl?: string
   ) => {
     await authApi.register(email, password, username, displayName);
-
-    // If avatar was uploaded, update profile after registration
-    // (profile is created during register, avatar can be patched after login)
     if (avatarUrl) {
-      // Store avatar url temporarily to apply after email confirmation + login
       localStorage.setItem('pending_avatar', avatarUrl);
     }
   }, []);
@@ -55,19 +60,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
   }, []);
 
-  const updateProfile = useCallback(async (data: {
-    display_name?: string;
-    bio?: string;
-    avatar_url?: string;
-  }) => {
+  const updateProfile = useCallback(async (data: UpdateProfileData) => {
     const updated = await profiles.update(data);
-    // Update session with new profile data
+
     setSession(prev => {
       if (!prev) return prev;
-      return {
-        ...prev,
-        user: { ...prev.user, ...updated },
+
+      const newUser: User = {
+        ...prev.user,
+        ...updated,
+        // Explicitly sync all profile fields to session
+        display_name:    data.display_name    ?? updated.display_name    ?? prev.user.display_name,
+        bio:             data.bio             ?? updated.bio             ?? prev.user.bio,
+        avatar_url:      data.avatar_url      ?? updated.avatar_url      ?? prev.user.avatar_url,
+        birthday:        data.birthday        ?? updated.birthday        ?? prev.user.birthday,
+        zodiac_sign:     data.zodiac_sign     ?? updated.zodiac_sign     ?? prev.user.zodiac_sign,
+        birthday_public: data.birthday_public ?? updated.birthday_public ?? prev.user.birthday_public,
       };
+
+      const newSession = { ...prev, user: newUser };
+      saveSession(newSession); // ← persist to localStorage too!
+      return newSession;
     });
   }, []);
 
@@ -79,7 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profiles.update({ avatar_url: pendingAvatar }).then(updated => {
         setSession(prev => {
           if (!prev) return prev;
-          return { ...prev, user: { ...prev.user, ...updated } };
+          const newSession = { ...prev, user: { ...prev.user, ...updated } };
+          saveSession(newSession);
+          return newSession;
         });
       }).catch(() => {});
     }

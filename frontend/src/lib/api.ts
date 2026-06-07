@@ -109,14 +109,21 @@ export const profiles = {
   get: (username: string) =>
     apiFetch<{ profile: any; cards: Card[] }>(`/profiles/${username}`),
 
-  update: (data: { display_name?: string; bio?: string; avatar_url?: string }) =>
-    apiFetch('/profiles', { method: 'PATCH', body: JSON.stringify(data) }, true),
+  update: (data: {
+    display_name?: string;
+    bio?: string;
+    avatar_url?: string;
+    birthday?: string;
+    zodiac_sign?: string;
+    birthday_public?: boolean;
+  }) => apiFetch('/profiles', { method: 'PATCH', body: JSON.stringify(data) }, true),
 };
+
 
 // ── Cards ──────────────────────────────────────────────────────────────────
 export const cards = {
-  list: (): Promise<Card[]> =>
-    apiFetch('/cards'),
+   list: (): Promise<{ cards: Card[]; mode: string; message?: string }> =>
+    apiFetch('/cards', {}, true),
 
   get: (id: string): Promise<Card> =>
     apiFetch(`/cards/${id}`),
@@ -185,4 +192,24 @@ export const comments = {
 
   delete: (commentId: string): Promise<void> =>
     apiFetch(`/admin/comments/${commentId}`, { method: 'DELETE' }, true),
+};
+
+// ── Follows ────────────────────────────────────────────────────────────────
+export const follows = {
+  toggle: (username: string) =>
+    apiFetch<{ action: string; username: string }>(
+      `/follow/${username}`,
+      { method: 'POST' },
+      true
+    ),
+
+  status: (username: string) =>
+    apiFetch<{ is_following: boolean; followers_count: number; following_count: number }>(
+      `/follow/${username}`,
+      {},
+      true
+    ),
+
+  getFollowing: () =>
+    apiFetch<{ following: string[] }>('/following', {}, true),
 };
