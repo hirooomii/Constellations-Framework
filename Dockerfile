@@ -57,3 +57,4 @@ RUN chown -R www-data:www-data /var/www/html \
 EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
+# force rebuild
