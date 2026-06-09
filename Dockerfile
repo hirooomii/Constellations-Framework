@@ -39,10 +39,19 @@ WORKDIR /var/www/html
 # Copy ALL files (build context is backend/)
 COPY . .
 
+# Ensure required directories exist and are writable
+RUN mkdir -p bootstrap/cache \
+    && mkdir -p storage/logs \
+    && mkdir -p storage/framework/cache \
+    && mkdir -p storage/framework/sessions \
+    && mkdir -p storage/framework/views \
+    && chmod -R 777 bootstrap/cache \
+    && chmod -R 777 storage
+
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# Copy nginx config (relative to backend/ build context)
+# Copy nginx config
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 # Copy supervisor config
@@ -53,9 +62,7 @@ COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Set permissions
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html/storage \
-    && chmod -R 755 /var/www/html/bootstrap/cache
+RUN chown -R www-data:www-data /var/www/html
 
 # Expose port
 EXPOSE 8000
