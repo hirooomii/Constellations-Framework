@@ -36,16 +36,20 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy ALL files first
+# Copy ALL files (build context is backend/)
 COPY . .
 
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-COPY backend/docker/nginx.conf /etc/nginx/nginx.conf
-COPY backend/docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY backend/docker/entrypoint.sh /entrypoint.sh
+# Copy nginx config (relative to backend/ build context)
+COPY docker/nginx.conf /etc/nginx/nginx.conf
 
+# Copy supervisor config
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Copy entrypoint script
+COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Set permissions
@@ -57,4 +61,3 @@ RUN chown -R www-data:www-data /var/www/html \
 EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
-# force rebuild
