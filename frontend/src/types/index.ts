@@ -14,6 +14,8 @@ export interface User {
   birthday?: string;
   avatar_url?: string;
   bio?: string;
+  zodiac_sign?: string;      
+  birthday_public?: boolean; 
 }
 
 export interface Card {
