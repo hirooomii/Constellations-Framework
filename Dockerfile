@@ -45,6 +45,7 @@ RUN mkdir -p bootstrap/cache \
     && mkdir -p storage/framework/cache \
     && mkdir -p storage/framework/sessions \
     && mkdir -p storage/framework/views \
+    && mkdir -p resources/views \
     && chmod -R 777 bootstrap/cache \
     && chmod -R 777 storage
 
