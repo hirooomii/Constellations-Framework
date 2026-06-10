@@ -61,4 +61,6 @@ export interface Profile {
   zodiac_sign?: string;
   birthday_public?: boolean;
   created_at?: string;
+  followers_count?: number;
+  following_count?: number;
 }
