@@ -66,7 +66,7 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
       setDesc(editCard.description || '');
       setImgUrl(editCard.image_url || '');
       setPreview(editCard.image_url || '');
-      setDisplayDate(toInputDate(editCard.display_date));
+      setDisplayDate(toInputDate(editCard.display_date ?? null));
       setPublishMode('now');
     } else {
       setTitle(''); setPoem(''); setDesc(''); setImgUrl(''); setPreview('');
