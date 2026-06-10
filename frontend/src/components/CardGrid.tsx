@@ -55,7 +55,11 @@ export default function CardGrid({ cards, isAdmin, currentUserId, onCardClick, o
       entries => {
         entries.forEach(e => {
           if (e.isIntersecting) {
-            setVisible(prev => new Set([...prev, e.target.getAttribute('data-id') || '']));
+           setVisible(prev => {
+              const next = new Set(Array.from(prev));
+              next.add(e.target.getAttribute('data-id') || '');
+              return next;
+            });
           }
         });
       },
