@@ -11,6 +11,7 @@ export interface User {
   role: 'guest' | 'registered' | 'admin';
   username?: string;
   display_name?: string;
+  birthday?: string;
   avatar_url?: string;
   bio?: string;
 }
