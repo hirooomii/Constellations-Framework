@@ -1,4 +1,4 @@
-import { AuthSession, Card, Comment, Reaction } from '@/types';
+import { AuthSession, Card, Comment, Reaction, User } from '@/types';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
@@ -33,7 +33,7 @@ async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
   auth = false
-): Promise<T> {
+): Promise<T | null> {
   const session = getSession();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -95,8 +95,8 @@ export const auth = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    saveSession(session);
-    return session;
+    saveSession(session!);
+    return session!;
   },
 
   logout() { clearSession(); },
@@ -116,35 +116,34 @@ export const profiles = {
     birthday?: string;
     zodiac_sign?: string;
     birthday_public?: boolean;
-  }) => apiFetch('/profiles', { method: 'PATCH', body: JSON.stringify(data) }, true),
+  }) => apiFetch<Partial<User>>('/profiles', { method: 'PATCH', body: JSON.stringify(data) }, true),
 };
-
 
 // ── Cards ──────────────────────────────────────────────────────────────────
 export const cards = {
-   list: (): Promise<{ cards: Card[]; mode: string; message?: string }> =>
-    apiFetch('/cards', {}, true),
+  list: (): Promise<{ cards: Card[]; mode: string; message?: string }> =>
+    apiFetch('/cards', {}, true) as Promise<{ cards: Card[]; mode: string; message?: string }>,
 
   get: (id: string): Promise<Card> =>
-    apiFetch(`/cards/${id}`),
+    apiFetch(`/cards/${id}`) as Promise<Card>,
 
   scheduledList: (): Promise<Card[]> =>
-    apiFetch('/admin/cards/scheduled', {}, true),
+    apiFetch('/admin/cards/scheduled', {}, true) as Promise<Card[]>,
 
   create: (data: Partial<Card>): Promise<Card> =>
-    apiFetch('/cards', { method: 'POST', body: JSON.stringify(data) }, true),
+    apiFetch('/cards', { method: 'POST', body: JSON.stringify(data) }, true) as Promise<Card>,
 
   update: (id: string, data: Partial<Card>): Promise<Card> =>
-    apiFetch(`/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, true),
+    apiFetch(`/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, true) as Promise<Card>,
 
   delete: (id: string): Promise<void> =>
-    apiFetch(`/cards/${id}`, { method: 'DELETE' }, true),
+    apiFetch(`/cards/${id}`, { method: 'DELETE' }, true) as Promise<void>,
 
   publishNow: (id: string): Promise<Card> =>
-    apiFetch(`/cards/${id}/publish-now`, { method: 'PATCH' }, true),
+    apiFetch(`/cards/${id}/publish-now`, { method: 'PATCH' }, true) as Promise<Card>,
 
   toggleComments: (id: string): Promise<Card> =>
-    apiFetch(`/cards/${id}/toggle-comments`, { method: 'PATCH' }, true),
+    apiFetch(`/cards/${id}/toggle-comments`, { method: 'PATCH' }, true) as Promise<Card>,
 };
 
 // ── Reactions ──────────────────────────────────────────────────────────────
@@ -161,7 +160,7 @@ export type ReactionType = typeof REACTION_TYPES[number]['type'];
 
 export const reactions = {
   get: (cardId: string): Promise<Reaction> =>
-    apiFetch(`/cards/${cardId}/reactions`),
+    apiFetch(`/cards/${cardId}/reactions`) as Promise<Reaction>,
 
   toggle: (cardId: string, reactionType: ReactionType) => {
     const session = getSession();
@@ -181,17 +180,17 @@ export const reactions = {
 // ── Comments ───────────────────────────────────────────────────────────────
 export const comments = {
   list: (cardId: string): Promise<Comment[]> =>
-    apiFetch(`/cards/${cardId}/comments`),
+    apiFetch(`/cards/${cardId}/comments`) as Promise<Comment[]>,
 
   post: (cardId: string, body: string): Promise<Comment> =>
     apiFetch(
       `/cards/${cardId}/comments`,
       { method: 'POST', body: JSON.stringify({ body }) },
       true
-    ),
+    ) as Promise<Comment>,
 
   delete: (commentId: string): Promise<void> =>
-    apiFetch(`/admin/comments/${commentId}`, { method: 'DELETE' }, true),
+    apiFetch(`/admin/comments/${commentId}`, { method: 'DELETE' }, true) as Promise<void>,
 };
 
 // ── Follows ────────────────────────────────────────────────────────────────
