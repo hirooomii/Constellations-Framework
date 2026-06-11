@@ -99,17 +99,18 @@ export default function ProfileModal({ username, onClose, currentUser, toast, on
     setActiveTab('verses');
 
     profiles.get(username)
-      .then(data => {
-        setProfile(data.profile);
-        setCards(data.cards);
-        setEditName(data.profile.display_name || '');
-        setEditBio(data.profile.bio || '');
-        setEditBirthday(data.profile.birthday || '');
-        setEditBirthdayPublic(data.profile.birthday_public ?? true);
-        setAvatarPreview(data.profile.avatar_url || '');
-      })
-      .catch(() => toast('Could not load profile'))
-      .finally(() => setLoading(false));
+    .then(data => {
+      if (!data) return;
+      setProfile(data.profile);
+      setCards(data.cards);
+      setEditName(data.profile.display_name || '');
+      setEditBio(data.profile.bio || '');
+      setEditBirthday(data.profile.birthday || '');
+      setEditBirthdayPublic(data.profile.birthday_public ?? true);
+      setAvatarPreview(data.profile.avatar_url || '');
+    })
+    .catch(() => toast('Could not load profile'))
+    .finally(() => setLoading(false));
   }, [username]);
 
   useEffect(() => {
@@ -220,14 +221,19 @@ export default function ProfileModal({ username, onClose, currentUser, toast, on
 
     useEffect(() => {
       follows.status(username)
-        .then(data => { setIsFollowing(data.is_following); setChecked(true); })
-        .catch(() => setChecked(true));
+      .then(data => { 
+        if (!data) return;
+        setIsFollowing(data.is_following); 
+        setChecked(true); 
+      })
+      .catch(() => setChecked(true));
     }, [username]);
 
     async function handleToggle() {
       setLoading(true);
       try {
         const res = await follows.toggle(username);
+        if (!res) return;
         const nowFollowing = res.action === 'followed';
         setIsFollowing(nowFollowing);
         onFollowChange(nowFollowing);

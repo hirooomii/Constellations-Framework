@@ -61,42 +61,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateProfile = useCallback(async (data: UpdateProfileData) => {
-    const updated = await profiles.update(data);
+    const updated = await profiles.update(data) as Partial<User>;
 
     setSession(prev => {
       if (!prev) return prev;
 
       const newUser: User = {
-        ...prev.user,
-        ...updated,
-        // Explicitly sync all profile fields to session
-        display_name:    data.display_name    ?? updated.display_name    ?? prev.user.display_name,
-        bio:             data.bio             ?? updated.bio             ?? prev.user.bio,
-        avatar_url:      data.avatar_url      ?? updated.avatar_url      ?? prev.user.avatar_url,
-        birthday:        data.birthday        ?? updated.birthday        ?? prev.user.birthday,
-        zodiac_sign:     data.zodiac_sign     ?? updated.zodiac_sign     ?? prev.user.zodiac_sign,
-        birthday_public: data.birthday_public ?? updated.birthday_public ?? prev.user.birthday_public,
+        id:              prev.user.id,
+        email:           prev.user.email,
+        role:            prev.user.role,
+        username:        prev.user.username,
+        display_name:    data.display_name    ?? (updated as any).display_name    ?? prev.user.display_name,
+        bio:             data.bio             ?? (updated as any).bio             ?? prev.user.bio,
+        avatar_url:      data.avatar_url      ?? (updated as any).avatar_url      ?? prev.user.avatar_url,
+        birthday:        data.birthday        ?? (updated as any).birthday        ?? prev.user.birthday,
+        zodiac_sign:     data.zodiac_sign     ?? (updated as any).zodiac_sign     ?? prev.user.zodiac_sign,
+        birthday_public: data.birthday_public ?? (updated as any).birthday_public ?? prev.user.birthday_public,
       };
 
       const newSession = { ...prev, user: newUser };
-      saveSession(newSession); // ← persist to localStorage too!
+      saveSession(newSession);
       return newSession;
     });
   }, []);
 
-  // After login, apply pending avatar if any
   useEffect(() => {
     const pendingAvatar = localStorage.getItem('pending_avatar');
     if (session && pendingAvatar) {
       localStorage.removeItem('pending_avatar');
-      profiles.update({ avatar_url: pendingAvatar }).then(updated => {
-        setSession(prev => {
-          if (!prev) return prev;
-          const newSession = { ...prev, user: { ...prev.user, ...updated } };
-          saveSession(newSession);
-          return newSession;
-        });
-      }).catch(() => {});
+      profiles.update({ avatar_url: pendingAvatar }).then((updated) => {
+      if (!updated) return;
+      setSession(prev => {
+        if (!prev) return prev;
+        const newSession = { ...prev, user: { ...prev.user, ...updated } };
+        saveSession(newSession);
+        return newSession;
+      });
+    }).catch(() => {});
     }
   }, [session?.user?.id]);
 
