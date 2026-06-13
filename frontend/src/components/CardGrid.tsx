@@ -19,12 +19,18 @@ interface CardGridProps {
   onEdit: (card: Card) => void;
   onDelete: (card: Card) => void;
   onAuthorClick?: (username: string) => void;
+  loading?: boolean;
 }
 
 const shimmerStyle = `
 @keyframes shimmerMove {
   0%   { background-position: -200% center; }
   100% { background-position: 200% center; }
+}
+@keyframes skeletonPulse {
+  0%   { opacity: .4; }
+  50%  { opacity: .8; }
+  100% { opacity: .4; }
 }
 .card-shimmer {
   position: absolute;
@@ -43,6 +49,39 @@ const shimmerStyle = `
   animation: shimmerMove 3.5s ease-in-out infinite;
   transition: opacity .3s ease;
 }
+.card-skeleton {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  aspect-ratio: 3/4;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(201,168,76,.08);
+}
+.card-skeleton-shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    rgba(201,168,76,0) 30%,
+    rgba(201,168,76,.07) 48%,
+    rgba(255,220,120,.1) 52%,
+    rgba(201,168,76,0) 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmerMove 1.8s ease-in-out infinite;
+}
+.card-skeleton-content {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 1.2rem;
+}
+.card-skeleton-line {
+  border-radius: 4px;
+  background: rgba(255,255,255,.08);
+  animation: skeletonPulse 1.8s ease infinite;
+}
 .card-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -60,7 +99,23 @@ const shimmerStyle = `
 }
 `;
 
-export default function CardGrid({ cards, isAdmin, currentUserId, onCardClick, onEdit, onDelete, onAuthorClick }: CardGridProps) {
+function CardSkeleton({ index }: { index: number }) {
+  return (
+    <div className="card-skeleton" style={{ animationDelay: `${index * 100}ms` }}>
+      <div className="card-skeleton-shine" />
+      <div className="card-skeleton-content">
+        <div className="card-skeleton-line" style={{ width: '40%', height: '8px', marginBottom: '10px' }} />
+        <div className="card-skeleton-line" style={{ width: '80%', height: '18px', marginBottom: '6px' }} />
+        <div className="card-skeleton-line" style={{ width: '55%', height: '18px', marginBottom: '14px' }} />
+        <div className="card-skeleton-line" style={{ width: '60%', height: '10px', marginBottom: '6px' }} />
+        <div className="card-skeleton-line" style={{ width: '90%', height: '10px', marginBottom: '6px' }} />
+        <div className="card-skeleton-line" style={{ width: '30%', height: '10px', marginTop: '10px' }} />
+      </div>
+    </div>
+  );
+}
+
+export default function CardGrid({ cards, isAdmin, currentUserId, onCardClick, onEdit, onDelete, onAuthorClick, loading }: CardGridProps) {
   const [visible, setVisible] = useState<Set<string>>(new Set());
   const [hovered, setHovered] = useState<string | null>(null);
   const refs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -90,6 +145,19 @@ export default function CardGrid({ cards, isAdmin, currentUserId, onCardClick, o
       return url.replace('https://lh3.googleusercontent.com', '/img-proxy');
     }
     return url;
+  }
+
+  if (loading) {
+    return (
+      <>
+        <style>{shimmerStyle}</style>
+        <div className="card-grid">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CardSkeleton key={i} index={i} />
+          ))}
+        </div>
+      </>
+    );
   }
 
   if (cards.length === 0) {

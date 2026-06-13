@@ -211,4 +211,22 @@ export const follows = {
 
   getFollowing: () =>
     apiFetch<{ following: string[] }>('/following', {}, true),
+  
+};
+
+export interface SuggestedUser {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url?: string;
+  bio?: string;
+  followers_count?: number;
+}
+
+export const users = {
+  suggested: () =>
+    apiFetch<{ users: SuggestedUser[] }>('/users/suggested', {}, true),
+
+  search: (query: string) =>
+    apiFetch<{ users: SuggestedUser[] }>(`/users/search?q=${encodeURIComponent(query)}`, {}, true),
 };
