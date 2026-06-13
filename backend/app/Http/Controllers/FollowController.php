@@ -67,4 +67,23 @@ class FollowController extends Controller
         $followingIds = $this->supabase->getFollowing($currentUser['id']);
         return response()->json(['following' => $followingIds]);
     }
+
+    public function suggested(Request $request): JsonResponse
+    {
+        $currentUser = $request->supabaseUser;
+        $users = $this->supabase->getSuggestedUsers($currentUser['id'], 5);
+        return response()->json(['users' => $users]);
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $currentUser = $request->supabaseUser;
+        $query = $request->query('q', '');
+        if (strlen($query) < 1) {
+            return response()->json(['users' => []]);
+        }
+        $users = $this->supabase->searchUsers($query, $currentUser['id'], 10);
+        return response()->json(['users' => $users]);
+    }
+    
 }

@@ -193,6 +193,38 @@ class SupabaseService
         }
     }
 
+    public function getSuggestedUsers(string $userId, int $limit = 5): array
+    {
+        $followingIds = $this->getFollowing($userId);
+        $excludeIds   = array_merge($followingIds, [$userId]);
+        $excludeList  = implode(',', array_map(fn($id) => "\"{$id}\"", $excludeIds));
+
+        $res = $this->http()->get("{$this->url}/rest/v1/profiles", [
+            'select' => 'id,username,display_name,avatar_url,bio,followers_count',
+            'order'  => 'followers_count.desc',
+            'limit'  => $limit + count($excludeIds),
+        ]);
+
+        $users = $res->successful() ? $res->json() : [];
+
+        $users = array_values(array_filter($users, fn($u) => !in_array($u['id'], $excludeIds)));
+
+        return array_slice($users, 0, $limit);
+    }
+
+    public function searchUsers(string $query, string $userId, int $limit = 10): array
+    {
+        $res = $this->http()->get("{$this->url}/rest/v1/profiles", [
+            'select'       => 'id,username,display_name,avatar_url,bio,followers_count',
+            'or'           => "(username.ilike.*{$query}*,display_name.ilike.*{$query}*)",
+            'limit'        => $limit,
+        ]);
+
+        $users = $res->successful() ? $res->json() : [];
+        
+        return array_values(array_filter($users, fn($u) => $u['id'] !== $userId));
+    }
+
     // ── CARDS ────────────────────────────────────────────────────────────────
 
     public function getTopCards(int $limit = 3): array

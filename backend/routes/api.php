@@ -63,4 +63,6 @@ Route::middleware('auth.supabase')->group(function () {
     Route::post('/follow/{username}',    [FollowController::class, 'toggle']);
     Route::get('/follow/{username}',     [FollowController::class, 'status']);
     Route::get('/following',             [FollowController::class, 'following']);
+    Route::get('/users/suggested', [FollowController::class, 'suggested']);
+    Route::get('/users/search', [FollowController::class, 'search']);
 });
