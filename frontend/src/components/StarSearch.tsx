@@ -12,6 +12,14 @@ const starSearchStyle = `
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes searchPulse {
+  0%   { opacity: .5; }
+  50%  { opacity: 1; }
+  100% { opacity: .5; }
+}
 .ss-skeleton {
   animation: skeletonPulse 1.8s ease infinite;
   background: rgba(255,255,255,.06);
@@ -23,6 +31,19 @@ const starSearchStyle = `
 .ss-row:hover {
   background: rgba(201,168,76,.06) !important;
   border-color: rgba(201,168,76,.15) !important;
+}
+.ss-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(201,168,76,.2);
+  border-top-color: var(--gold, #c9a84c);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.ss-searching-bar {
+  animation: searchPulse 1.2s ease infinite;
 }
 @media (max-width: 600px) {
   .ss-dropdown {
@@ -62,6 +83,17 @@ export default function StarSearch({ onProfileClick, toast }: StarSearchProps) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  // Load following list on mount to show correct follow state
+  useEffect(() => {
+    follows.getFollowing()
+      .then(data => {
+        if (data?.following) {
+          setFollowed(new Set(data.following));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Load suggested when opened
   useEffect(() => {
     if (!open) return;
@@ -76,7 +108,7 @@ export default function StarSearch({ onProfileClick, toast }: StarSearchProps) {
   // Search debounce
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (!query.trim()) { setResults([]); return; }
+    if (!query.trim()) { setResults([]); setSearching(false); return; }
     setSearching(true);
     timerRef.current = setTimeout(() => {
       usersApi.search(query)
@@ -131,13 +163,18 @@ export default function StarSearch({ onProfileClick, toast }: StarSearchProps) {
 
       {/* Inline search bar */}
       <div style={{ ...s.searchBar, ...(open ? s.searchBarOpen : {}) }}>
-        <svg style={s.searchIcon} width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
+        {searching ? (
+          <span className="ss-spinner" style={{ marginRight: '.4rem' }} />
+        ) : (
+          <svg style={s.searchIcon} width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        )}
         <input
           ref={inputRef}
           style={s.input}
-          placeholder="Find star creators…"
+          className={searching ? 'ss-searching-bar' : ''}
+          placeholder={searching ? 'Searching…' : 'Find star creators…'}
           value={query}
           onChange={e => setQuery(e.target.value)}
           onFocus={() => setOpen(true)}
@@ -151,7 +188,12 @@ export default function StarSearch({ onProfileClick, toast }: StarSearchProps) {
       {open && (
         <div className="ss-dropdown" style={s.dropdown}>
           <div style={s.sectionLabel}>
-            {query.trim() ? `Results for "${query}"` : '✦ Suggested Stars'}
+            {searching ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                <span className="ss-spinner" />
+                Searching for "{query}"…
+              </span>
+            ) : query.trim() ? `Results for "${query}"` : '✦ Suggested Stars'}
           </div>
 
           <div style={s.list}>
@@ -166,7 +208,7 @@ export default function StarSearch({ onProfileClick, toast }: StarSearchProps) {
                   <div className="ss-skeleton" style={{ width: '58px', height: '24px', borderRadius: '50px' }} />
                 </div>
               ))
-            ) : displayUsers.length === 0 ? (
+            ) : displayUsers.length === 0 && !searching ? (
               <p style={s.empty}>
                 {query.trim() ? 'No stars found.' : 'No suggestions yet.'}
               </p>
@@ -203,7 +245,7 @@ export default function StarSearch({ onProfileClick, toast }: StarSearchProps) {
                       onClick={() => handleFollow(user.username)}
                       disabled={isLoadingF}
                     >
-                      {isLoadingF ? '…' : isFollowed ? '✓' : '+ Follow'}
+                      {isLoadingF ? '…' : isFollowed ? '✓ Following' : '+ Follow'}
                     </button>
                   </div>
                 );
@@ -221,7 +263,7 @@ const s: Record<string, React.CSSProperties> = {
   searchBar: { display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.1)', borderRadius: '50px', padding: '.35rem .75rem .35rem .65rem', backdropFilter: 'blur(8px)', transition: 'all .25s', width: '160px' },
   searchBarOpen: { borderColor: 'rgba(201,168,76,.35)', background: 'rgba(201,168,76,.06)', width: '200px' },
   searchIcon: { color: 'var(--text-muted)', flexShrink: 0, marginRight: '.4rem' },
-  input: { flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", fontSize: '.78rem', minWidth: 0 },
+  input: { flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", fontSize: '.78rem', minWidth: 0, transition: 'opacity .3s' },
   clearBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '.65rem', padding: '0 0 0 .3rem', flexShrink: 0 },
   dropdown: { position: 'fixed', top: '4rem', right: '1rem', width: '320px', background: 'rgba(13,11,9,.97)', border: '1px solid rgba(201,168,76,.18)', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,.8)', zIndex: 300, overflow: 'hidden', backdropFilter: 'blur(20px)' },
   sectionLabel: { fontSize: '.62rem', letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--gold)', opacity: .7, padding: '.75rem .85rem .4rem' },
