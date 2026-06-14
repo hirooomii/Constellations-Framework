@@ -7,6 +7,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\FollowController;
+use App\Http\Controllers\NotificationController;
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -65,4 +66,12 @@ Route::middleware('auth.supabase')->group(function () {
     Route::get('/following',             [FollowController::class, 'following']);
     Route::get('/users/suggested', [FollowController::class, 'suggested']);
     Route::get('/users/search', [FollowController::class, 'search']);
+});
+
+// ── NOTIFICATIONS ───────────────────────────────────────────────────────────────
+Route::middleware('auth.supabase')->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/archive', [NotificationController::class, 'archive']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'readOne']);
 });

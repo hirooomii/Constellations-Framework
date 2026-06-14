@@ -230,3 +230,18 @@ export const users = {
   search: (query: string) =>
     apiFetch<{ users: SuggestedUser[] }>(`/users/search?q=${encodeURIComponent(query)}`, {}, true),
 };
+
+// ── Notifications ──────────────────────────────────────────────────────────
+export const notifications = {
+  list: () =>
+    apiFetch<{ notifications: any[]; unread_count: number }>('/notifications', {}, true),
+
+  archive: () =>
+    apiFetch<{ notifications: any[] }>('/notifications/archive', {}, true),
+
+  readAll: () =>
+    apiFetch('/notifications/read-all', { method: 'POST' }, true),
+
+  readOne: (id: string) =>
+    apiFetch(`/notifications/${id}/read`, { method: 'POST' }, true),
+};

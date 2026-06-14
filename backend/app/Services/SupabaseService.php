@@ -232,13 +232,30 @@ class SupabaseService
         $now = now()->toIso8601String();
         $res = $this->http()->get("{$this->url}/rest/v1/cards", [
             'select' => '*',
-            'order'  => 'hearts.desc,created_at.desc',
-            'limit'  => $limit,
             'or'     => "(scheduled_at.is.null,scheduled_at.lte.{$now})",
         ]);
         $cards = $res->successful() ? $res->json() : [];
         $cards = array_map([$this, 'enrichCardWithAvatar'], $cards);
-        return array_map([$this, 'enrichCardWithReactions'], $cards);
+        $cards = array_map([$this, 'enrichCardWithReactions'], $cards);
+
+        // Enrich with comment count
+        $cards = array_map(function (array $card) {
+            $res = $this->http()->get("{$this->url}/rest/v1/comments", [
+                'card_id' => "eq.{$card['id']}",
+                'select'  => 'id',
+            ]);
+            $card['comment_count'] = $res->successful() ? count($res->json()) : 0;
+            return $card;
+        }, $cards);
+
+        // Sort by reaction_count + comment_count descending
+        usort($cards, function ($a, $b) {
+            $scoreA = ($a['reaction_count'] ?? 0) + ($a['comment_count'] ?? 0);
+            $scoreB = ($b['reaction_count'] ?? 0) + ($b['comment_count'] ?? 0);
+            return $scoreB <=> $scoreA;
+        });
+
+        return array_slice($cards, 0, $limit);
     }
 
     public function getPublishedCards(): array
@@ -451,5 +468,53 @@ class SupabaseService
     {
         $res = $this->http()->delete("{$this->url}/rest/v1/comments?id=eq.{$id}");
         if (!$res->successful()) throw new \RuntimeException($res->body());
+    }
+
+    // ── NOTIFICATIONS ─────────────────────────────────────────────────────────
+
+    public function getNotifications(string $userId, int $limit = 10, int $offset = 0): array
+    {
+        $res = $this->http()->get("{$this->url}/rest/v1/notifications", [
+            'select'  => 'id,type,message,is_read,created_at,card_id,actor_id',
+            'user_id' => "eq.{$userId}",
+            'order'   => 'created_at.desc',
+            'limit'   => $limit,
+            'offset'  => $offset,
+        ]);
+
+        $notifications = $res->successful() ? $res->json() : [];
+
+        // Enrich with actor profile
+        return array_map(function ($notif) {
+            if (!empty($notif['actor_id'])) {
+                try {
+                    $profile = $this->getProfile($notif['actor_id']);
+                    $notif['actor'] = [
+                        'username'     => $profile['username'] ?? null,
+                        'display_name' => $profile['display_name'] ?? null,
+                        'avatar_url'   => $profile['avatar_url'] ?? null,
+                    ];
+                } catch (\Throwable $e) {
+                    $notif['actor'] = null;
+                }
+            }
+            return $notif;
+        }, $notifications);
+    }
+
+    public function markAllNotificationsRead(string $userId): void
+    {
+        $this->http()->patch(
+            "{$this->url}/rest/v1/notifications?user_id=eq.{$userId}&is_read=eq.false",
+            ['is_read' => true]
+        );
+    }
+
+    public function markNotificationRead(string $id, string $userId): void
+    {
+        $this->http()->patch(
+            "{$this->url}/rest/v1/notifications?id=eq.{$id}&user_id=eq.{$userId}",
+            ['is_read' => true]
+        );
     }
 }

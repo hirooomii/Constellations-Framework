@@ -13,6 +13,7 @@ import CardGrid from '@/components/CardGrid';
 import ProfileModal from '@/components/ProfileModal';
 import WhoToFollow from '@/components/WhoToFollow';
 import StarSearch from '@/components/StarSearch';
+import NotificationBell from '@/components/NotificationBell';
 
 function HomeInner() {
   const { user, isAdmin, isRegistered, logout } = useAuth();
@@ -188,6 +189,16 @@ function HomeInner() {
             toast={showToast}
           />
         </div>
+      )}
+     {user && (
+        <NotificationBell
+          userId={user.id}
+          onProfileClick={setProfileUsername}
+          onCardClick={(cardId) => {
+            const card = publishedCards.find(c => c.id === cardId);
+            if (card) setViewCard(card);
+          }}
+        />
       )}
       {user && (
         <button style={s.profileBtn} onClick={() => user.username && setProfileUsername(user.username)}>
