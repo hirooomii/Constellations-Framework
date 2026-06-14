@@ -238,20 +238,14 @@ function HomeInner() {
         <h1 style={s.siteTitle}>Constellations<br />of Us</h1>
         <p style={s.siteSub}>Each verse a star, each line a sky we share</p>
         <div style={s.divider} />
-        <div style={s.roleHints}>
-          {!user && (
-            <span style={s.hint}>
-              👁 Guests can view & react ·{' '}
-              <button style={s.hintBtn} onClick={openRegister}>Join to add verses</button>
-            </span>
-          )}
-          {isRegistered && !isAdmin && (
-            <span style={s.hint}>✦ You can add verses, react & comment</span>
-          )}
-          {isAdmin && (
-            <span style={{ ...s.hint, color: 'var(--gold)' }}>✦ Admin mode — full control</span>
-          )}
-        </div>
+       <div style={s.roleHints}>
+        {!user && (
+          <span style={s.hint}>
+            👁 Guests can view & react ·{' '}
+            <button style={s.hintBtn} onClick={openRegister}>Join to add verses</button>
+          </span>
+        )}
+      </div>
       </header>
 
       {canAddVerse && (
@@ -267,7 +261,7 @@ function HomeInner() {
 
       <p style={s.sectionFade}>↓ Scroll to explore ↓</p>
 
-      {feedMessage && (
+      {feedMessage && !user && (
         <div style={s.feedBanner}>
           <span style={s.feedBannerIcon}>
             {feedMode === 'guest' ? '👁' : feedMode === 'feed' ? '✦' : '🌟'}
