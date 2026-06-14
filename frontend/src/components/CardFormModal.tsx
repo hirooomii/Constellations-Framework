@@ -10,7 +10,7 @@ const CLOUDINARY_PRESET = 'constellation_uploads';
 interface CardFormModalProps {
   open: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (newCard?: Card) => void; 
   toast: (msg: string) => void;
   editCard?: Card | null;
 }
@@ -126,12 +126,13 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
         });
         toast('Verse updated ✦');
       } else {
+        let newCard: Card;
         if (publishMode === 'schedule') {
           if (!schedDate || !schedTime) { setError('Please pick a date and time.'); setLoading(false); return; }
           const scheduledAt = new Date(`${schedDate}T${schedTime}:00`);
           if (isNaN(scheduledAt.getTime())) { setError('Invalid date or time.'); setLoading(false); return; }
           if (scheduledAt <= new Date()) { setError('Scheduled time must be in the future.'); setLoading(false); return; }
-          await cardsApi.create({
+          newCard = await cardsApi.create({
             title: title.trim(),
             poem: poem.trim(),
             description: desc.trim() || 'A verse without bounds',
@@ -141,7 +142,7 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
           });
           toast(`"${title.trim()}" scheduled ⏰`);
         } else {
-          await cardsApi.create({
+          newCard = await cardsApi.create({
             title: title.trim(),
             poem: poem.trim(),
             description: desc.trim() || 'A verse without bounds',
@@ -151,6 +152,7 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
           });
           toast('Verse published ✦');
         }
+        onSaved(newCard);  // pass the real card up
       }
       onSaved();
       onClose();

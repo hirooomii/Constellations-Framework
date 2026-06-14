@@ -124,7 +124,20 @@ function HomeInner() {
   function openRegister() { setAuthDefaultTab('register'); setAuthOpen(true); }
   function handleLogout() { logout(); showToast('Logged out'); }
 
-  async function refresh() {
+  const UPLOADING_ID = '__uploading__';
+
+  async function refresh(newCard?: Card) {
+    if (newCard && newCard.scheduled_at === null) {
+      const placeholder: Card = {
+        ...newCard,
+        id: UPLOADING_ID,
+        title: newCard.title,
+        image_url: newCard.image_url,
+        reaction_counts: {},
+        reaction_count: 0,
+      };
+      setPublishedCards(prev => [placeholder, ...prev]);
+    }
     await loadPublished();
     if (isAdmin || isRegistered) await loadScheduled();
   }
@@ -370,7 +383,7 @@ function HomeInner() {
         defaultTab={authDefaultTab}
         toast={showToast}
       />
-      <CardFormModal
+     <CardFormModal
         open={addOpen || !!editCard}
         onClose={() => { setAddOpen(false); setEditCard(null); }}
         onSaved={refresh}

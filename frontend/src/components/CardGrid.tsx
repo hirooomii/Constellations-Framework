@@ -32,6 +32,9 @@ const shimmerStyle = `
   50%  { opacity: .8; }
   100% { opacity: .4; }
 }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 .card-shimmer {
   position: absolute;
   inset: 0;
@@ -99,6 +102,8 @@ const shimmerStyle = `
 }
 `;
 
+const UPLOADING_ID = '__uploading__';
+
 function CardSkeleton({ index }: { index: number }) {
   return (
     <div className="card-skeleton" style={{ animationDelay: `${index * 100}ms` }}>
@@ -110,6 +115,38 @@ function CardSkeleton({ index }: { index: number }) {
         <div className="card-skeleton-line" style={{ width: '60%', height: '10px', marginBottom: '6px' }} />
         <div className="card-skeleton-line" style={{ width: '90%', height: '10px', marginBottom: '6px' }} />
         <div className="card-skeleton-line" style={{ width: '30%', height: '10px', marginTop: '10px' }} />
+      </div>
+    </div>
+  );
+}
+
+function UploadingCard({ card }: { card: Card }) {
+  return (
+    <div style={{ ...s.card, opacity: 1, transform: 'translateY(0)', cursor: 'default' }}>
+      <img
+        src={card.image_url || 'https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif'}
+        alt={card.title}
+        style={{ ...s.media, filter: 'brightness(.5)' }}
+      />
+      <div style={s.overlay} />
+
+      {/* Shimmer over uploading card */}
+      <div style={{
+        position: 'absolute', inset: 0, zIndex: 3,
+        background: 'linear-gradient(105deg, rgba(201,168,76,0) 30%, rgba(201,168,76,.12) 48%, rgba(255,220,120,.18) 52%, rgba(201,168,76,0) 70%)',
+        backgroundSize: '200% 100%',
+        animation: 'shimmerMove 1.8s ease-in-out infinite',
+      }} />
+
+      {/* Publishing badge */}
+      <div style={s.uploadingBadge}>
+        <div style={s.uploadingSpinner} />
+        <span style={{ fontSize: '.72rem', color: 'var(--gold)', letterSpacing: '.08em' }}>Publishing…</span>
+      </div>
+
+      <div style={s.content}>
+        <div style={s.cardTitle}>{card.title}</div>
+        <div style={{ ...s.cardDesc, opacity: .6 }}>Your verse is being added to the constellation…</div>
       </div>
     </div>
   );
@@ -179,6 +216,12 @@ export default function CardGrid({ cards, isAdmin, currentUserId, onCardClick, o
       <style>{shimmerStyle}</style>
       <div className="card-grid">
         {cards.map((card, i) => {
+
+          // Uploading placeholder
+          if (card.id === UPLOADING_ID) {
+            return <UploadingCard key={UPLOADING_ID} card={card} />;
+          }
+
           const isVis    = visible.has(card.id);
           const isOwner  = !!currentUserId && card.author_id === currentUserId;
           const canEdit  = isAdmin || isOwner;
@@ -296,4 +339,6 @@ const s: Record<string, React.CSSProperties> = {
   authorUsername: { color: 'rgba(201,168,76,.6)', fontSize: '.65rem' },
   cardDesc: { fontSize: '.78rem', color: 'var(--text-muted)', marginTop: '.2rem', lineHeight: 1.5 },
   readMore: { display: 'flex', alignItems: 'center', gap: '.4rem', marginTop: '.6rem', fontSize: '.72rem', letterSpacing: '.08em', color: 'var(--gold)' },
+  uploadingBadge: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.5rem', background: 'rgba(0,0,0,.75)', backdropFilter: 'blur(8px)', borderRadius: '12px', padding: '.75rem 1.2rem', border: '1px solid rgba(201,168,76,.3)' },
+  uploadingSpinner: { width: '22px', height: '22px', borderRadius: '50%', border: '2px solid rgba(201,168,76,.2)', borderTop: '2px solid var(--gold)', animation: 'spin .8s linear infinite' },
 };
