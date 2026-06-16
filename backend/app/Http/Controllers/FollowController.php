@@ -85,5 +85,35 @@ class FollowController extends Controller
         $users = $this->supabase->searchUsers($query, $currentUser['id'], 10);
         return response()->json(['users' => $users]);
     }
+
+    public function followers(Request $request, string $username): JsonResponse
+    {
+        $profile = $this->supabase->getProfileByUsername($username);
+        if (!$profile) return response()->json(['error' => 'Not found'], 404);
+
+        $followerIds = $this->supabase->getFollowers($profile['id']);
+        $users = array_filter(array_map(fn($id) => $this->supabase->getProfile($id), $followerIds));
+        $users = array_values(array_map(fn($u) => [
+            'id' => $u['id'], 'username' => $u['username'],
+            'display_name' => $u['display_name'], 'avatar_url' => $u['avatar_url'] ?? null,
+        ], $users));
+
+        return response()->json(['users' => $users]);
+    }
+
+    public function followingList(Request $request, string $username): JsonResponse
+    {
+        $profile = $this->supabase->getProfileByUsername($username);
+        if (!$profile) return response()->json(['error' => 'Not found'], 404);
+
+        $followingIds = $this->supabase->getFollowing($profile['id']);
+        $users = array_filter(array_map(fn($id) => $this->supabase->getProfile($id), $followingIds));
+        $users = array_values(array_map(fn($u) => [
+            'id' => $u['id'], 'username' => $u['username'],
+            'display_name' => $u['display_name'], 'avatar_url' => $u['avatar_url'] ?? null,
+        ], $users));
+
+        return response()->json(['users' => $users]);
+    }
     
 }

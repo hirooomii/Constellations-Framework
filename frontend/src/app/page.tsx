@@ -161,6 +161,45 @@ function HomeInner() {
       {/* Particles */}
       <div ref={particlesRef} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }} />
 
+      {/* Padding Top */}
+      <style>{`
+        @media (max-width: 600px) {
+          header { padding-top: 7rem !important; }
+        }
+      `}</style>
+
+      {/* Constellations of US Shimmer */}
+    <style>{`
+      @media (max-width: 600px) {
+        header { padding-top: 7rem !important; }
+      }
+      @keyframes shimmer {
+        0%   { background-position: -200% center; }
+        100% { background-position: 200% center; }
+      }
+      @keyframes starPop {
+        0%, 100% { opacity: 0; transform: scale(0); }
+        50%       { opacity: 1; transform: scale(1); }
+      }
+      .site-title {
+        background: linear-gradient(
+          90deg,
+          #8b6914 0%,
+          #c9a84c 20%,
+          #fff8e7 40%,
+          #ffd700 50%,
+          #fff8e7 60%,
+          #c9a84c 80%,
+          #8b6914 100%
+        ) !important;
+        background-size: 200% auto !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        background-clip: text !important;
+        animation: shimmer 3s linear infinite !important;
+      }
+    `}</style>
+      
       {/* Responsive Auth Corner Styles */}
       <style>{`
         @media (max-width: 600px) {
@@ -259,7 +298,7 @@ function HomeInner() {
       {/* Header */}
       <header style={s.header}>
         <p style={s.eyebrow}>✦ Where Stars Remember ✦</p>
-        <h1 style={s.siteTitle}>Constellations<br />of Us</h1>
+        <h1 className="site-title" style={s.siteTitle}>Constellations<br />of Us</h1>
         <p style={s.siteSub}>Each verse a star, each line a sky we share</p>
         <div style={s.divider} />
        <div style={s.roleHints}>
@@ -445,7 +484,7 @@ const s: Record<string, React.CSSProperties> = {
   authBtn: { display: 'flex', alignItems: 'center', gap: '.4rem', background: 'rgba(0,0,0,.55)', border: '1px solid rgba(201,168,76,.25)', color: 'var(--text-muted)', padding: '.45rem .9rem', borderRadius: '50px', fontFamily: "'DM Sans', sans-serif", fontSize: '.78rem', cursor: 'pointer', transition: 'all .25s', backdropFilter: 'blur(8px)' },
   header: { position: 'relative', zIndex: 10, textAlign: 'center', padding: '5rem 2rem 2rem', background: 'linear-gradient(180deg,rgba(13,11,9,1) 0%,transparent 100%)' },
   eyebrow: { fontSize: '.75rem', letterSpacing: '.25em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '1rem' },
-  siteTitle: { fontFamily: "'Playfair Display', serif", fontSize: 'clamp(2.8rem,8vw,6rem)', fontWeight: 700, lineHeight: 1.05, background: 'linear-gradient(135deg,var(--gold-light) 0%,var(--gold) 50%,#8b6914 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' },
+  siteTitle: { fontFamily: "'Playfair Display', serif", fontSize: 'clamp(2.8rem,8vw,6rem)', fontWeight: 700, lineHeight: 1.05 },
   siteSub: { marginTop: '1rem', fontSize: '1rem', color: 'var(--text-muted)', fontStyle: 'italic' },
   divider: { width: '60px', height: '1px', background: 'var(--gold)', opacity: .4, margin: '2rem auto' },
   roleHints: { marginTop: '.5rem' },

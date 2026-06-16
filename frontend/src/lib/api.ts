@@ -211,6 +211,16 @@ export const follows = {
 
   getFollowing: () =>
     apiFetch<{ following: string[] }>('/following', {}, true),
+
+   followers: (username: string) =>
+    apiFetch<{ users: { id: string; username: string; display_name: string; avatar_url?: string }[] }>(
+      `/profiles/${username}/followers`
+    ),
+
+  following: (username: string) =>
+    apiFetch<{ users: { id: string; username: string; display_name: string; avatar_url?: string }[] }>(
+      `/profiles/${username}/following`
+    ),
   
 };
 

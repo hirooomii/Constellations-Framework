@@ -51,12 +51,29 @@ Route::post('/cards/{id}/comments',  [CommentController::class, 'store'])->middl
 // ── ZODIAC ──────────────────────────────────────────────────────────────────
 Route::get('/horoscope/{sign}', function (string $sign) {
     $res = \Illuminate\Support\Facades\Http::withoutVerifying()
-        ->get("https://freehoroscopeapi.com/api/v1/get-horoscope/daily?sign={$sign}");
-    
+        ->get("https://horoscope-app-api.vercel.app/api/v1/get-horoscope/daily", [
+            'sign' => $sign,
+            'day'  => 'TODAY',
+        ]);
+
     if (!$res->successful()) {
         return response()->json(['error' => 'Failed to fetch horoscope'], 500);
     }
-    return response()->json($res->json());
+
+    $data = $res->json();
+
+    // Try both possible response keys
+    $horoscope = $data['data']['horoscope_data'] 
+              ?? $data['data']['horoscope'] 
+              ?? '';
+
+    return response()->json([
+        'data' => [
+            'horoscope' => $horoscope,
+            'sign'      => $sign,
+            'date'      => now()->toDateString(),
+        ]
+    ]);
 });
 
 // ── FOLLOWS ───────────────────────────────────────────────────────────────
@@ -67,6 +84,9 @@ Route::middleware('auth.supabase')->group(function () {
     Route::get('/users/suggested', [FollowController::class, 'suggested']);
     Route::get('/users/search', [FollowController::class, 'search']);
 });
+
+Route::get('/profiles/{username}/followers', [FollowController::class, 'followers']);
+Route::get('/profiles/{username}/following', [FollowController::class, 'followingList']);
 
 // ── NOTIFICATIONS ───────────────────────────────────────────────────────────────
 Route::middleware('auth.supabase')->group(function () {
