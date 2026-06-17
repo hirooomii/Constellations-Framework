@@ -297,9 +297,22 @@ function HomeInner() {
 
       {/* Header */}
       <header style={s.header}>
+        {/* Logo in header */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+          <img 
+            src="/icon.png" 
+            alt="Celestia" 
+            style={{ 
+              width: '160px', 
+              height: '160px', 
+              borderRadius: '20px',
+              filter: 'drop-shadow(0 0 20px rgba(201,168,76,.5)) drop-shadow(0 0 40px rgba(139,105,20,.3))',
+            }} 
+          />
+        </div>
         <p style={s.eyebrow}>✦ Where Stars Remember ✦</p>
-        <h1 className="site-title" style={s.siteTitle}>Constellations<br />of Us</h1>
-        <p style={s.siteSub}>Each verse a star, each line a sky we share</p>
+        <h1 className="site-title" style={s.siteTitle}>Celestia</h1>
+        <p style={s.siteSub}>A celestial space where every verse becomes a star</p>
         <div style={s.divider} />
        <div style={s.roleHints}>
         {!user && (
@@ -413,7 +426,7 @@ function HomeInner() {
         </>
       )}
 
-      <footer style={s.footer}>© Constellations of Us · All rights reserved</footer>
+      <footer style={s.footer}>© Celestia · All rights reserved</footer>
 
       {/* Modals */}
       <AuthModal

@@ -3,7 +3,7 @@ import { AuthProvider } from '@/hooks/useAuth';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Constellations of Us',
+  title: 'Celestia',
   description: 'Each verse a star, each line a sky we share',
 };
 
