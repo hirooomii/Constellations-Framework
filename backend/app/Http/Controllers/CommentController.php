@@ -35,17 +35,21 @@ class CommentController extends Controller
         }
 
         $data = $request->validate([
-            'body' => 'required|string|max:500',
+            'body'      => 'required|string|max:500',
+            'parent_id' => 'nullable|uuid',
+            'reply_to'  => 'nullable|string|max:100',
         ]);
 
         $profile = $this->supabase->getProfile($user['id']);
 
         $comment = $this->supabase->insertComment([
-            'card_id' => $id,
-            'user_id' => $user['id'],
-            'author'  => $profile['display_name'] ?? $profile['username'] ?? $user['email'],
-            'body'    => $data['body'],
+            'card_id'    => $id,
+            'user_id'    => $user['id'],
+            'author'     => $profile['display_name'] ?? $profile['username'] ?? $user['email'],
+            'body'       => $data['body'],
             'avatar_url' => $profile['avatar_url'] ?? null,
+            'parent_id'  => $data['parent_id'] ?? null,
+            'reply_to'   => $data['reply_to'] ?? null,
         ]);
 
         return response()->json($comment, 201);

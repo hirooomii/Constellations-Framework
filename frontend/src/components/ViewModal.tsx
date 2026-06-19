@@ -17,6 +17,12 @@ interface ViewModalProps {
 interface CommentWithProfile extends Comment {
   avatar_url?: string;
   username?: string;
+  replies?: CommentWithProfile[];
+}
+
+interface ReplyTarget {
+  parentId: string;
+  author: string;
 }
 
 export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast, onAuthRequired, onProfileClick }: ViewModalProps) {
@@ -29,6 +35,7 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
   const [commentsEnabled, setCommentsEnabled]   = useState(true);
   const [togglingComments, setTogglingComments] = useState(false);
   const [activeReactionPicker, setActiveReactionPicker] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<ReplyTarget | null>(null);
 
   const isAdmin           = user?.role === 'admin';
   const isOwner           = !!user && card?.author_id === user.id;
@@ -67,6 +74,7 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
   useEffect(() => {
     if (!card) return;
     setCommentText('');
+    setReplyingTo(null);
     setActiveReactionPicker(false);
     setCommentsEnabled(card.comments_enabled ?? true);
     loadReactions(card.id);
@@ -96,13 +104,78 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
     if (!canComment) { onAuthRequired(); return; }
     setPostingComment(true);
     try {
-      await commentsApi.post(card!.id, commentText.trim());
+      await commentsApi.post(
+        card!.id,
+        commentText.trim(),
+        replyingTo?.parentId,
+        replyingTo?.author,
+      );
       setCommentText('');
+      setReplyingTo(null);
       await loadComments(card!.id);
-      toast('Comment added ✦');
+      toast(replyingTo ? 'Reply added ✦' : 'Comment added ✦');
     } catch (e: unknown) {
       toast(e instanceof Error ? e.message : 'Failed to post comment');
     } finally { setPostingComment(false); }
+  }
+
+  function renderBody(text: string) {
+    const parts = text.split(/(@\S+)/g);
+    return parts.map((part, i) =>
+      part.startsWith('@')
+        ? <span key={i} style={s.mention}>{part}</span>
+        : part
+    );
+  }
+
+  function handleReplyClick(comment: CommentWithProfile, isReply: boolean) {
+    // Replies always nest under the top-level comment (1 level deep like Instagram)
+    const parentId = isReply ? (comment.parent_id ?? comment.id) : comment.id;
+    setReplyingTo({ parentId, author: comment.author });
+    setCommentText(`@${comment.author} `);
+  }
+
+  function renderComment(c: CommentWithProfile, isReply = false) {
+    return (
+      <div key={c.id} style={isReply ? s.replyItem : s.commentItem}>
+        <div style={s.commentRow}>
+          <div style={{
+            ...s.commentAvatar,
+            ...(isReply ? { width: '24px', height: '24px', fontSize: '.62rem' } : {}),
+            background: c.avatar_url ? 'transparent' : getAvatarColor(c.author),
+          }}>
+            {c.avatar_url
+              ? <img src={c.avatar_url} alt={c.author} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              : getInitial(c.author)
+            }
+          </div>
+          <div style={s.commentContent}>
+            <div style={s.commentAuthorRow}>
+              <span style={s.commentAuthor}>{c.author}</span>
+              <span style={s.commentTime}>
+                {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ·{' '}
+                {new Date(c.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+              {isAdmin && (
+                <button style={s.commentDel} onClick={() => handleDeleteComment(c.id)}>✕</button>
+              )}
+            </div>
+            <div style={s.commentBody}>{renderBody(c.body)}</div>
+            {canComment && commentsEnabled && (
+              <button style={s.replyBtn} onClick={() => handleReplyClick(c, isReply)}>
+                Reply
+              </button>
+            )}
+          </div>
+        </div>
+        {/* Nested replies — only rendered on top-level comments */}
+        {!isReply && c.replies && c.replies.length > 0 && (
+          <div style={s.repliesList}>
+            {c.replies.map(r => renderComment(r, true))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   async function handleDeleteComment(id: string) {
@@ -295,56 +368,38 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
                     No comments yet. {canComment ? 'Be the first!' : 'Log in to comment.'}
                   </p>
                 )}
-                {commentsList.map(c => (
-                  <div key={c.id} style={s.commentItem}>
-                    {/* Comment avatar */}
-                    <div style={s.commentRow}>
-                    <div style={{ ...s.commentAvatar, background: c.avatar_url ? 'transparent' : getAvatarColor(c.author) }}>
-                      {c.avatar_url
-                        ? <img src={c.avatar_url} alt={c.author} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                        : getInitial(c.author)
-                      }
-                    </div>
-                      <div style={s.commentContent}>
-                        <div style={s.commentAuthorRow}>
-                          <span style={s.commentAuthor}>{c.author}</span>
-                          <span style={s.commentTime}>
-                            {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ·{' '}
-                            {new Date(c.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          {isAdmin && (
-                            <button style={s.commentDel} onClick={() => handleDeleteComment(c.id)}>✕</button>
-                          )}
-                        </div>
-                        <div style={s.commentBody}>{c.body}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                {commentsList.map(c => renderComment(c))}
               </div>
 
               {canComment ? (
-                <div style={s.inputRow}>
-                  {/* Current user avatar */}
-                  {user && (
-                    <div style={{ ...s.commentAvatar, background: getAvatarColor(user.display_name || user.email), flexShrink: 0 }}>
-                      {user.avatar_url
-                        ? <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                        : getInitial(user.display_name || user.email)
-                      }
+                <div>
+                  {replyingTo && (
+                    <div style={s.replyBanner}>
+                      <span style={s.replyBannerText}>Replying to <span style={s.mention}>@{replyingTo.author}</span></span>
+                      <button style={s.replyCancel} onClick={() => { setReplyingTo(null); setCommentText(''); }}>✕</button>
                     </div>
                   )}
-                  <input
-                    style={s.commentInput}
-                    placeholder="Leave a kind thought…"
-                    value={commentText}
-                    onChange={e => setCommentText(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleComment()}
-                    maxLength={500}
-                  />
-                  <button style={s.sendBtn} onClick={handleComment} disabled={postingComment}>
-                    {postingComment ? '…' : '➤'}
-                  </button>
+                  <div style={s.inputRow}>
+                    {user && (
+                      <div style={{ ...s.commentAvatar, background: user.avatar_url ? 'transparent' : getAvatarColor(user.display_name || user.email), flexShrink: 0 }}>
+                        {user.avatar_url
+                          ? <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                          : getInitial(user.display_name || user.email)
+                        }
+                      </div>
+                    )}
+                    <input
+                      style={s.commentInput}
+                      placeholder={replyingTo ? `Reply to @${replyingTo.author}…` : 'Leave a kind thought…'}
+                      value={commentText}
+                      onChange={e => setCommentText(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleComment()}
+                      maxLength={500}
+                    />
+                    <button style={s.sendBtn} onClick={handleComment} disabled={postingComment}>
+                      {postingComment ? '…' : '➤'}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <button style={s.loginToComment} onClick={onAuthRequired}>
@@ -413,6 +468,13 @@ const s: Record<string, React.CSSProperties> = {
   commentTime: { fontSize: '.62rem', color: 'var(--text-muted)' },
   commentDel: { background: 'none', border: 'none', color: 'rgba(200,80,80,.5)', cursor: 'pointer', fontSize: '.68rem', padding: 0, lineHeight: 1, marginLeft: 'auto' },
   commentBody: { fontSize: '.82rem', color: 'var(--text)', lineHeight: 1.5 },
+  mention: { color: 'var(--gold)', fontWeight: 600 },
+  replyBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '.68rem', cursor: 'pointer', padding: '.15rem 0', marginTop: '.2rem', fontFamily: "'DM Sans', sans-serif", transition: 'color .15s' },
+  repliesList: { marginTop: '.5rem', paddingLeft: '1.2rem', borderLeft: '2px solid rgba(201,168,76,.15)', display: 'flex', flexDirection: 'column' as const, gap: '.4rem' },
+  replyItem: { background: 'rgba(255,255,255,.02)', borderRadius: '10px', padding: '.5rem .65rem' },
+  replyBanner: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(201,168,76,.07)', border: '1px solid rgba(201,168,76,.18)', borderRadius: '8px', padding: '.35rem .7rem', marginBottom: '.4rem' },
+  replyBannerText: { fontSize: '.72rem', color: 'var(--text-muted)' },
+  replyCancel: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '.7rem', padding: 0, lineHeight: 1 },
   inputRow: { display: 'flex', gap: '.5rem', alignItems: 'center' },
   commentInput: { flex: 1, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(201,168,76,.15)', borderRadius: '8px', padding: '.5rem .75rem', color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", fontSize: '.82rem', outline: 'none' },
   sendBtn: { width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(201,168,76,.12)', border: '1px solid rgba(201,168,76,.28)', color: 'var(--gold)', cursor: 'pointer', fontSize: '.9rem', transition: 'all .25s', flexShrink: 0 },

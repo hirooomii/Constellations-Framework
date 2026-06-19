@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(ls -R \"C:\\\\Projects\\\\Constellations-Framework\\\\frontend\\\\src\")"
+    ]
+  }
+}

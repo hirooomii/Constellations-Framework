@@ -46,6 +46,31 @@ export interface Comment {
   body: string;
   created_at: string;
   avatar_url?: string;
+  parent_id?: string | null;
+  reply_to?: string | null;
+  replies?: Comment[];
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_avatar?: string | null;
+  body: string;
+  created_at: string;
+}
+
+export interface Conversation {
+  id: string;
+  other_user: {
+    id: string;
+    username?: string;
+    display_name?: string;
+    avatar_url?: string;
+  };
+  last_message?: Message | null;
+  unread_count: number;
 }
 
 export interface Reaction {

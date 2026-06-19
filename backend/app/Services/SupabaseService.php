@@ -441,7 +441,8 @@ class SupabaseService
         ]);
         $comments = $res->successful() ? $res->json() : [];
 
-        return array_map(function (array $comment) {
+        // Enrich all comments with avatars
+        $comments = array_map(function (array $comment) {
             $userId = $comment['user_id'] ?? null;
             if ($userId) {
                 try {
@@ -453,6 +454,28 @@ class SupabaseService
             }
             return $comment;
         }, $comments);
+
+        // Build nested structure (1 level deep like Instagram)
+        $parents = [];
+        $replies  = [];
+
+        foreach ($comments as $comment) {
+            if (empty($comment['parent_id'])) {
+                $comment['replies'] = [];
+                $parents[$comment['id']] = $comment;
+            } else {
+                $replies[] = $comment;
+            }
+        }
+
+        foreach ($replies as $reply) {
+            $parentId = $reply['parent_id'];
+            if (isset($parents[$parentId])) {
+                $parents[$parentId]['replies'][] = $reply;
+            }
+        }
+
+        return array_values($parents);
     }
 
     public function insertComment(array $data): array
@@ -468,6 +491,166 @@ class SupabaseService
     {
         $res = $this->http()->delete("{$this->url}/rest/v1/comments?id=eq.{$id}");
         if (!$res->successful()) throw new \RuntimeException($res->body());
+    }
+
+    // ── MESSAGING ────────────────────────────────────────────────────────────
+
+    public function getUserConversationIds(string $userId): array
+    {
+        $res = $this->http()->get("{$this->url}/rest/v1/conversation_participants", [
+            'user_id' => "eq.{$userId}",
+            'select'  => 'conversation_id',
+        ]);
+        return $res->successful() ? array_column($res->json(), 'conversation_id') : [];
+    }
+
+    public function getConversations(string $userId): array
+    {
+        $res = $this->http()->get("{$this->url}/rest/v1/conversation_participants", [
+            'user_id' => "eq.{$userId}",
+            'select'  => 'conversation_id,last_read_at',
+        ]);
+        $participations = $res->successful() ? $res->json() : [];
+        if (empty($participations)) return [];
+
+        $lastReadMap = array_column($participations, 'last_read_at', 'conversation_id');
+        $conversations = [];
+
+        foreach ($participations as $p) {
+            $convId = $p['conversation_id'];
+
+            $otherRes = $this->http()->get("{$this->url}/rest/v1/conversation_participants", [
+                'conversation_id' => "eq.{$convId}",
+                'user_id'         => "neq.{$userId}",
+                'select'          => 'user_id',
+                'limit'           => 1,
+            ]);
+            $others = $otherRes->successful() ? $otherRes->json() : [];
+            if (empty($others)) continue;
+
+            $otherUserId  = $others[0]['user_id'];
+            $otherProfile = $this->getProfile($otherUserId);
+
+            $msgRes = $this->http()->get("{$this->url}/rest/v1/messages", [
+                'conversation_id' => "eq.{$convId}",
+                'select'          => '*',
+                'order'           => 'created_at.desc',
+                'limit'           => 1,
+            ]);
+            $lastMsg = ($msgRes->successful() && !empty($msgRes->json())) ? $msgRes->json()[0] : null;
+
+            $lastRead  = $lastReadMap[$convId] ?? '1970-01-01T00:00:00Z';
+            $unreadRes = $this->http()->get("{$this->url}/rest/v1/messages", [
+                'conversation_id' => "eq.{$convId}",
+                'sender_id'       => "neq.{$userId}",
+                'created_at'      => "gt.{$lastRead}",
+                'select'          => 'id',
+            ]);
+            $unreadCount = $unreadRes->successful() ? count($unreadRes->json()) : 0;
+
+            $conversations[] = [
+                'id'           => $convId,
+                'other_user'   => [
+                    'id'           => $otherUserId,
+                    'username'     => $otherProfile['username'] ?? null,
+                    'display_name' => $otherProfile['display_name'] ?? null,
+                    'avatar_url'   => $otherProfile['avatar_url'] ?? null,
+                ],
+                'last_message' => $lastMsg,
+                'unread_count' => $unreadCount,
+            ];
+        }
+
+        usort($conversations, function ($a, $b) {
+            $ta = $a['last_message']['created_at'] ?? '1970-01-01T00:00:00Z';
+            $tb = $b['last_message']['created_at'] ?? '1970-01-01T00:00:00Z';
+            return strcmp($tb, $ta);
+        });
+
+        return $conversations;
+    }
+
+    public function getOrCreateConversation(string $userId, string $otherUserId): array
+    {
+        $myConvIds = $this->getUserConversationIds($userId);
+
+        foreach ($myConvIds as $convId) {
+            $check = $this->http()->get("{$this->url}/rest/v1/conversation_participants", [
+                'conversation_id' => "eq.{$convId}",
+                'user_id'         => "eq.{$otherUserId}",
+                'select'          => 'conversation_id',
+                'limit'           => 1,
+            ]);
+            if (!empty($check->json())) {
+                return ['id' => $convId, 'created' => false];
+            }
+        }
+
+        $convRes = $this->httpWith(['Prefer' => 'return=representation'])
+            ->post("{$this->url}/rest/v1/conversations", new \stdClass());
+        if (!$convRes->successful()) throw new \RuntimeException($convRes->body());
+        $conv   = $convRes->json();
+        $convId = is_array($conv) && isset($conv[0]) ? $conv[0]['id'] : $conv['id'];
+
+        $this->http()->post("{$this->url}/rest/v1/conversation_participants", [
+            'conversation_id' => $convId, 'user_id' => $userId,
+        ]);
+        $this->http()->post("{$this->url}/rest/v1/conversation_participants", [
+            'conversation_id' => $convId, 'user_id' => $otherUserId,
+        ]);
+
+        return ['id' => $convId, 'created' => true];
+    }
+
+    public function getMessages(string $conversationId): array
+    {
+        $res = $this->http()->get("{$this->url}/rest/v1/messages", [
+            'conversation_id' => "eq.{$conversationId}",
+            'select'          => '*',
+            'order'           => 'created_at.asc',
+            'limit'           => 100,
+        ]);
+        return $res->successful() ? $res->json() : [];
+    }
+
+    public function insertMessage(array $data): array
+    {
+        $res = $this->httpWith(['Prefer' => 'return=representation'])
+            ->post("{$this->url}/rest/v1/messages", $data);
+        if (!$res->successful()) throw new \RuntimeException($res->body());
+        $json = $res->json();
+        return is_array($json) && isset($json[0]) ? $json[0] : $json;
+    }
+
+    public function markConversationRead(string $conversationId, string $userId): void
+    {
+        $this->http()->patch(
+            "{$this->url}/rest/v1/conversation_participants?conversation_id=eq.{$conversationId}&user_id=eq.{$userId}",
+            ['last_read_at' => now()->toIso8601String()]
+        );
+    }
+
+    public function getUnreadMessageCount(string $userId): int
+    {
+        $participations = [];
+        $res = $this->http()->get("{$this->url}/rest/v1/conversation_participants", [
+            'user_id' => "eq.{$userId}",
+            'select'  => 'conversation_id,last_read_at',
+        ]);
+        $participations = $res->successful() ? $res->json() : [];
+
+        $total = 0;
+        foreach ($participations as $p) {
+            $lastRead  = $p['last_read_at'] ?? '1970-01-01T00:00:00Z';
+            $unreadRes = $this->http()->get("{$this->url}/rest/v1/messages", [
+                'conversation_id' => "eq.{$p['conversation_id']}",
+                'sender_id'       => "neq.{$userId}",
+                'created_at'      => "gt.{$lastRead}",
+                'select'          => 'id',
+            ]);
+            $total += $unreadRes->successful() ? count($unreadRes->json()) : 0;
+        }
+        return $total;
     }
 
     // ── NOTIFICATIONS ─────────────────────────────────────────────────────────

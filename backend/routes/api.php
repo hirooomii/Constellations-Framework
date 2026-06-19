@@ -8,6 +8,7 @@ use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\FollowController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\MessageController;
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -87,6 +88,16 @@ Route::middleware('auth.supabase')->group(function () {
 
 Route::get('/profiles/{username}/followers', [FollowController::class, 'followers']);
 Route::get('/profiles/{username}/following', [FollowController::class, 'followingList']);
+
+// ── MESSAGES ───────────────────────────────────────────────────────────────────
+Route::middleware('auth.supabase')->group(function () {
+    Route::get('/conversations',                    [MessageController::class, 'index']);
+    Route::post('/conversations/open',              [MessageController::class, 'open']);
+    Route::get('/conversations/unread',             [MessageController::class, 'unreadCount']);
+    Route::get('/conversations/{id}/messages',      [MessageController::class, 'messages']);
+    Route::post('/conversations/{id}/messages',     [MessageController::class, 'send']);
+    Route::patch('/conversations/{id}/read',        [MessageController::class, 'markRead']);
+});
 
 // ── NOTIFICATIONS ───────────────────────────────────────────────────────────────
 Route::middleware('auth.supabase')->group(function () {

@@ -14,6 +14,8 @@ import ProfileModal from '@/components/ProfileModal';
 import WhoToFollow from '@/components/WhoToFollow';
 import StarSearch from '@/components/StarSearch';
 import NotificationBell from '@/components/NotificationBell';
+import MessagesPanel from '@/components/MessagesPanel';
+import { messages as messagesApi } from '@/lib/api';
 
 function HomeInner() {
   const { user, isAdmin, isRegistered, logout } = useAuth();
@@ -33,6 +35,9 @@ function HomeInner() {
   const [deleteCard, setDeleteCard]       = useState<Card | null>(null);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [authDefaultTab, setAuthDefaultTab] = useState<'login' | 'register'>('login');
+  const [msgOpen, setMsgOpen]               = useState(false);
+  const [msgUnread, setMsgUnread]           = useState(0);
+  const [msgInitialUserId, setMsgInitialUserId] = useState<string | null>(null);
 
   // Particles
   const particlesRef = useRef<HTMLDivElement>(null);
@@ -87,6 +92,20 @@ function HomeInner() {
       window.history.replaceState(null, '', window.location.pathname);
     }
   }, []);
+
+  // Poll unread message count
+  useEffect(() => {
+    if (!user) { setMsgUnread(0); return; }
+    const poll = async () => {
+      try {
+        const data = await messagesApi.unreadCount();
+        setMsgUnread(data?.unread_count ?? 0);
+      } catch { /* silent */ }
+    };
+    poll();
+    const id = setInterval(poll, 30000);
+    return () => clearInterval(id);
+  }, [user]);
 
   // Scheduler ticker
   useEffect(() => {
@@ -251,6 +270,16 @@ function HomeInner() {
             if (card) setViewCard(card);
           }}
         />
+      )}
+      {user && (
+        <button style={s.iconBtn} onClick={() => setMsgOpen(true)} title="Messages">
+          <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          {msgUnread > 0 && (
+            <span style={s.msgBadge}>{msgUnread > 9 ? '9+' : msgUnread}</span>
+          )}
+        </button>
       )}
       {user && (
         <button style={s.profileBtn} onClick={() => user.username && setProfileUsername(user.username)}>
@@ -465,7 +494,18 @@ function HomeInner() {
         toast={showToast}
         onCardClick={card => { setProfileUsername(null); setViewCard(card); }}
         onEditProfile={() => {}}
+        onMessageUser={userId => { setMsgInitialUserId(userId); setProfileUsername(null); setMsgOpen(true); }}
       />
+      {user && (
+        <MessagesPanel
+          user={user}
+          open={msgOpen}
+          onClose={() => { setMsgOpen(false); setMsgInitialUserId(null); }}
+          toast={showToast}
+          initialUserId={msgInitialUserId}
+          onInitialUserHandled={() => setMsgInitialUserId(null)}
+        />
+      )}
     </>
   );
 }
@@ -484,7 +524,8 @@ const s: Record<string, React.CSSProperties> = {
   feedBannerIcon: { fontSize: '.9rem' },
   feedBannerBtn: { fontSize: '.72rem', padding: '.25rem .75rem', borderRadius: '50px', border: '1px solid rgba(201,168,76,.3)', background: 'transparent', color: 'var(--gold)', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" },
   authCorner: { position: 'fixed', top: '1rem', right: '1rem', zIndex: 200, display: 'flex', alignItems: 'center', gap: '.5rem' },
-  iconBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '34px', height: '34px', borderRadius: '50%', background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--text-muted)', cursor: 'pointer', backdropFilter: 'blur(8px)', flexShrink: 0 },
+  iconBtn: { position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '34px', height: '34px', borderRadius: '50%', background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--text-muted)', cursor: 'pointer', backdropFilter: 'blur(8px)', flexShrink: 0 },
+  msgBadge: { position: 'absolute', top: '-3px', right: '-3px', background: 'var(--gold)', color: 'var(--dark)', fontSize: '.52rem', fontWeight: 700, borderRadius: '50%', width: '15px', height: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' },
   profileBtn: { display: 'flex', alignItems: 'center', gap: '.5rem', background: 'rgba(0,0,0,.55)', border: '1px solid rgba(201,168,76,.15)', borderRadius: '50px', padding: '.3rem .7rem .3rem .3rem', backdropFilter: 'blur(8px)', cursor: 'pointer', textAlign: 'left' },
   avatarThumb: { width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 },
   avatarInitials: { width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg,var(--gold),#8b6914)', color: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.75rem', fontWeight: 700, flexShrink: 0 },

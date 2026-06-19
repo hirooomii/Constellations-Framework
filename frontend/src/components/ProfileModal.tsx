@@ -4,6 +4,7 @@ import { Card, User, Profile } from '@/types';
 import { profiles, follows } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { getZodiacSign, getDailyHoroscope, getCompatibility, ZODIAC_SIGNS } from '@/lib/zodiac';
+import ZodiacIcon from '@/components/ZodiacIcon';
 
 const CLOUDINARY_CLOUD  = 'dky9pzz0r';
 const CLOUDINARY_PRESET = 'constellation_uploads';
@@ -67,6 +68,7 @@ interface ProfileModalProps {
   toast: (msg: string) => void;
   onCardClick: (card: Card) => void;
   onEditProfile?: () => void;
+  onMessageUser?: (userId: string) => void;
 }
 
 interface FollowUser {
@@ -76,7 +78,7 @@ interface FollowUser {
   avatar_url?: string;
 }
 
-export default function ProfileModal({ username, onClose, currentUser, toast, onCardClick }: ProfileModalProps) {
+export default function ProfileModal({ username, onClose, currentUser, toast, onCardClick, onMessageUser }: ProfileModalProps) {
   const { updateProfile } = useAuth();
   const [profile, setProfile]               = useState<Profile | null>(null);
   const [cards, setCards]                   = useState<Card[]>([]);
@@ -385,8 +387,8 @@ export default function ProfileModal({ username, onClose, currentUser, toast, on
                   )}
                   <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
                   {zodiac && !isEditing && (
-                    <div style={{ ...s.zodiacBadge, background: zodiac.color + '33', borderColor: zodiac.color + '66', color: zodiac.color }}>
-                      {zodiac.symbol}
+                    <div style={{ ...s.zodiacBadge, background: zodiac.color + '33', borderColor: zodiac.color + '66' }}>
+                      <ZodiacIcon sign={zodiac.sign} size={18} color={zodiac.color} />
                     </div>
                   )}
                 </div>
@@ -417,7 +419,7 @@ export default function ProfileModal({ username, onClose, currentUser, toast, on
               {/* Zodiac inline */}
               {zodiac && !isEditing && (
                 <div style={s.zodiacInline}>
-                  <span style={{ color: zodiac.color, fontSize: '.72rem', fontWeight: 600 }}>{zodiac.symbol} {zodiac.sign}</span>
+                  <span style={{ color: zodiac.color, fontSize: '.72rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '.25rem' }}><ZodiacIcon sign={zodiac.sign} size={16} color={zodiac.color} /> {zodiac.sign}</span>
                   <span style={{ color: 'var(--text-muted)', fontSize: '.65rem' }}>· {zodiac.element} {zodiac.elementEmoji}</span>
                   {zodiac.traits.slice(0, 2).map(t => (
                     <span key={t} style={{ ...s.traitPill, borderColor: zodiac.color + '44', color: zodiac.color }}>{t}</span>
@@ -451,17 +453,30 @@ export default function ProfileModal({ username, onClose, currentUser, toast, on
               {!isEditing && (
                 <div style={s.actionRow}>
                   {!isOwnProfile && currentUser && (
-                    <FollowButton
-                      username={profile.username}
-                      currentUser={currentUser}
-                      toast={toast}
-                      onFollowChange={(isFollowing) => {
-                        setProfile(prev => prev ? {
-                          ...prev,
-                          followers_count: (prev.followers_count ?? 0) + (isFollowing ? 1 : -1)
-                        } : prev);
-                      }}
-                    />
+                    <>
+                      <FollowButton
+                        username={profile.username}
+                        currentUser={currentUser}
+                        toast={toast}
+                        onFollowChange={(isFollowing) => {
+                          setProfile(prev => prev ? {
+                            ...prev,
+                            followers_count: (prev.followers_count ?? 0) + (isFollowing ? 1 : -1)
+                          } : prev);
+                        }}
+                      />
+                      {onMessageUser && profile.id && (
+                        <button
+                          style={s.msgBtn}
+                          onClick={() => { onMessageUser(profile.id); onClose(); }}
+                        >
+                          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                          </svg>
+                          Message
+                        </button>
+                      )}
+                    </>
                   )}
                   {isOwnProfile && (
                     <button style={s.editProfileBtn} onClick={() => setIsEditing(true)}>✎ Edit Profile</button>
@@ -493,7 +508,7 @@ export default function ProfileModal({ username, onClose, currentUser, toast, on
                     <input style={s.editInput} type="date" value={editBirthday} onChange={e => setEditBirthday(e.target.value)} />
                     {previewZodiac && (
                       <div style={{ ...s.zodiacPreview, borderColor: previewZodiac.color + '44' }}>
-                        <span style={{ fontSize: '1.1rem' }}>{previewZodiac.symbol}</span>
+                        <ZodiacIcon sign={previewZodiac.sign} size={28} color={previewZodiac.color} />
                         <div>
                           <div style={{ fontSize: '.78rem', color: previewZodiac.color, fontWeight: 600 }}>{previewZodiac.sign}</div>
                           <div style={{ fontSize: '.62rem', color: 'var(--text-muted)' }}>{previewZodiac.element} {previewZodiac.elementEmoji} · {previewZodiac.dateRange}</div>
@@ -523,7 +538,7 @@ export default function ProfileModal({ username, onClose, currentUser, toast, on
                 </button>
                 {profile.zodiac_sign && (
                   <button style={{ ...s.tab, ...(activeTab === 'horoscope' ? s.tabActive : {}) }} onClick={() => setActiveTab('horoscope')}>
-                    {zodiac?.symbol} Today's Horoscope
+                    {zodiac && <ZodiacIcon sign={zodiac.sign} size={16} color={zodiac.color} />} Today's Horoscope
                   </button>
                 )}
               </div>
@@ -621,8 +636,8 @@ export default function ProfileModal({ username, onClose, currentUser, toast, on
             {activeTab === 'horoscope' && zodiac && !isEditing && (
               <div style={s.horoscopeSection}>
                 <div style={{ ...s.signHero, background: `linear-gradient(135deg,${zodiac.color}22,${zodiac.color}11)`, borderColor: zodiac.color + '33' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: 'linear-gradient(135deg, rgba(201,168,76,.15), rgba(139,105,20,.1))', border: '1px solid rgba(201,168,76,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', color: 'var(--gold)', flexShrink: 0 }}>
-                    {zodiac.symbol}
+                  <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: 'linear-gradient(135deg, rgba(201,168,76,.15), rgba(139,105,20,.1))', border: '1px solid rgba(201,168,76,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <ZodiacIcon sign={zodiac.sign} size={44} color={zodiac.color} />
                   </div>
                   <div>
                     <div style={{ fontSize: '1.1rem', fontFamily: "'Playfair Display', serif", color: zodiac.color }}>{zodiac.sign}</div>
@@ -665,7 +680,7 @@ export default function ProfileModal({ username, onClose, currentUser, toast, on
                         const compat = getCompatibility(zodiac.sign, z.sign);
                         return (
                           <div key={z.sign} style={{ ...s.compatItem, borderColor: compat.color + '33' }}>
-                            <span style={{ fontSize: '1.1rem', color: 'var(--gold)', filter: 'drop-shadow(0 0 4px rgba(201,168,76,.4))' }}>{z.symbol}</span>
+                            <ZodiacIcon sign={z.sign} size={22} color="#c9a84c" />
                             <span style={{ fontSize: '.6rem', color: 'var(--text-muted)' }}>{z.sign}</span>
                             <div style={s.compatMiniBar}><div style={{ ...s.compatMiniFill, width: `${compat.score}%`, background: compat.color }} /></div>
                             <span style={{ fontSize: '.58rem', color: compat.color }}>{compat.score}%</span>
@@ -716,6 +731,7 @@ const s: Record<string, React.CSSProperties> = {
   totalBadge: { fontSize: '.62rem', color: 'var(--text-muted)', fontStyle: 'italic' },
   actionRow: { display: 'flex', gap: '.5rem', marginTop: '.3rem' },
   editProfileBtn: { padding: '.3rem 1rem', borderRadius: '8px', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(255,255,255,.2)', background: 'rgba(255,255,255,.05)', color: 'var(--text)', cursor: 'pointer', fontSize: '.78rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 },
+  msgBtn: { display: 'flex', alignItems: 'center', gap: '.35rem', padding: '.3rem 1rem', borderRadius: '8px', border: '1px solid rgba(201,168,76,.3)', background: 'rgba(201,168,76,.08)', color: 'var(--gold)', cursor: 'pointer', fontSize: '.78rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 },
   compatBox: { background: 'rgba(255,255,255,.03)', borderWidth: '1px', borderStyle: 'solid', borderRadius: '10px', padding: '.6rem .85rem', marginTop: '.35rem', width: '100%', boxSizing: 'border-box' as const },
   compatHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.3rem' },
   compatBar: { height: '4px', background: 'rgba(255,255,255,.08)', borderRadius: '50px', overflow: 'hidden' },

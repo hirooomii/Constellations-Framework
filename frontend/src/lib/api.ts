@@ -1,4 +1,4 @@
-import { AuthSession, Card, Comment, Reaction, User } from '@/types';
+import { AuthSession, Card, Comment, Conversation, Message, Reaction, User } from '@/types';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
@@ -182,10 +182,10 @@ export const comments = {
   list: (cardId: string): Promise<Comment[]> =>
     apiFetch(`/cards/${cardId}/comments`) as Promise<Comment[]>,
 
-  post: (cardId: string, body: string): Promise<Comment> =>
+  post: (cardId: string, body: string, parentId?: string, replyTo?: string): Promise<Comment> =>
     apiFetch(
       `/cards/${cardId}/comments`,
-      { method: 'POST', body: JSON.stringify({ body }) },
+      { method: 'POST', body: JSON.stringify({ body, parent_id: parentId, reply_to: replyTo }) },
       true
     ) as Promise<Comment>,
 
@@ -239,6 +239,27 @@ export const users = {
 
   search: (query: string) =>
     apiFetch<{ users: SuggestedUser[] }>(`/users/search?q=${encodeURIComponent(query)}`, {}, true),
+};
+
+// ── Messages ───────────────────────────────────────────────────────────────
+export const messages = {
+  listConversations: (): Promise<{ conversations: Conversation[] }> =>
+    apiFetch('/conversations', {}, true) as Promise<{ conversations: Conversation[] }>,
+
+  openConversation: (userId: string): Promise<{ id: string; created: boolean }> =>
+    apiFetch('/conversations/open', { method: 'POST', body: JSON.stringify({ user_id: userId }) }, true) as Promise<{ id: string; created: boolean }>,
+
+  unreadCount: (): Promise<{ unread_count: number }> =>
+    apiFetch('/conversations/unread', {}, true) as Promise<{ unread_count: number }>,
+
+  getMessages: (conversationId: string): Promise<{ messages: Message[] }> =>
+    apiFetch(`/conversations/${conversationId}/messages`, {}, true) as Promise<{ messages: Message[] }>,
+
+  send: (conversationId: string, body: string): Promise<Message> =>
+    apiFetch(`/conversations/${conversationId}/messages`, { method: 'POST', body: JSON.stringify({ body }) }, true) as Promise<Message>,
+
+  markRead: (conversationId: string): Promise<void> =>
+    apiFetch(`/conversations/${conversationId}/read`, { method: 'PATCH' }, true) as Promise<void>,
 };
 
 // ── Notifications ──────────────────────────────────────────────────────────

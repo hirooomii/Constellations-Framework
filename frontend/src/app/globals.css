@@ -36,6 +36,20 @@ body {
 }
 * { scrollbar-width: thin; scrollbar-color: rgba(201,168,76,.35) transparent; }
 
+/* Messages panel slide-in */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* Mobile: show only one pane at a time in MessagesPanel */
+@media (max-width: 600px) {
+  .msg-sidebar { display: flex !important; width: 100% !important; }
+  .msg-sidebar-hidden { display: none !important; }
+  .msg-thread  { display: flex !important; width: 100% !important; }
+  .msg-thread-hidden { display: none !important; }
+}
+
 /* Toast */
 .toast {
   position: fixed;
