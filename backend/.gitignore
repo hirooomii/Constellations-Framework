@@ -13,3 +13,4 @@ storage/framework/views/
 # Misc
 .DS_Store
 test.php
+database/database.sqlite
