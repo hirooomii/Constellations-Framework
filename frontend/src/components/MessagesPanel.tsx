@@ -50,13 +50,28 @@ export default function MessagesPanel({
 
   // Subscribe to Supabase Realtime for the active conversation
   useEffect(() => {
-    if (!activeConvId) return;
-    const session = getSession();
-    if (!session?.access_token) return;
+    console.log('[realtime] effect fired, activeConvId =', activeConvId);
 
+    if (!activeConvId) {
+      console.log('[realtime] no activeConvId, skipping subscription');
+      return;
+    }
+
+    const session = getSession();
+    console.log('[realtime] session:', session);
+    console.log('[realtime] access_token present?', !!session?.access_token);
+
+    if (!session?.access_token) {
+      console.log('[realtime] NO ACCESS TOKEN — bailing out, this is likely the bug');
+      return;
+    }
+
+    console.log('[realtime] creating realtime client...');
     const client = createRealtimeClient(session.access_token);
+    console.log('[realtime] client created:', client);
     channelRef.current = client;
 
+    console.log('[realtime] subscribing to channel:', `msgs:${activeConvId}`);
     client
       .channel(`msgs:${activeConvId}`)
       .on('postgres_changes', {
@@ -65,6 +80,7 @@ export default function MessagesPanel({
         table: 'messages',
         filter: `conversation_id=eq.${activeConvId}`,
       }, (payload) => {
+        console.log('[realtime] 🎉 MESSAGE RECEIVED:', payload);
         const newMsg = payload.new as Message;
         setMsgs(prev => prev.find(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);
         setConversations(prev => prev.map(c =>
@@ -76,9 +92,15 @@ export default function MessagesPanel({
           messagesApi.markRead(activeConvId).catch(() => {});
         }
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log('[realtime] subscription status:', status);
+        if (err) console.error('[realtime] subscription error:', err);
+      });
 
-    return () => { client.removeAllChannels(); };
+    return () => {
+      console.log('[realtime] cleanup — removing channels');
+      client.removeAllChannels();
+    };
   }, [activeConvId, user.id]);
 
   // Auto-scroll on new messages
