@@ -404,7 +404,7 @@ const s: Record<string, React.CSSProperties> = {
   },
   landingBrand: { textAlign: 'center', marginBottom: '2.5rem' },
   landingLogo: {
-    width: '100px', height: '100px', borderRadius: '20px', marginBottom: '1.2rem',
+    width: '140px', height: '140px', borderRadius: '24px', marginBottom: '1.2rem',
     filter: 'drop-shadow(0 0 20px rgba(201,168,76,.55)) drop-shadow(0 0 40px rgba(139,105,20,.3))',
   },
   eyebrow: { fontSize: '.72rem', letterSpacing: '.28em', textTransform: 'uppercase' as const, color: 'var(--gold)', marginBottom: '.8rem' },
