@@ -18,6 +18,7 @@ interface AuthContextValue {
   session: AuthSession | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  oauthLogin: (session: AuthSession) => void;
   register: (email: string, password: string, username: string, displayName: string, avatarUrl?: string) => Promise<void>;
   logout: () => void;
   updateProfile: (data: UpdateProfileData) => Promise<void>;
@@ -39,6 +40,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const s = await authApi.login(email, password);
+    setSession(s);
+  }, []);
+
+  const oauthLogin = useCallback((s: AuthSession) => {
+    saveSession(s);
     setSession(s);
   }, []);
 
@@ -109,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       isLoading,
       login,
+      oauthLogin,
       register,
       logout,
       updateProfile,

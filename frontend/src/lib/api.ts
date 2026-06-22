@@ -99,6 +99,22 @@ export const auth = {
     return session!;
   },
 
+  async oauthSync(accessToken: string, refreshToken: string): Promise<AuthSession> {
+    const res = await fetch(`${BASE}/auth/me`, {
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!res.ok) throw new Error('OAuth sync failed');
+    const data = await res.json();
+    const session: AuthSession = {
+      access_token:  data.access_token,
+      refresh_token: refreshToken,
+      expires_in:    data.expires_in ?? 3600,
+      user:          data.user,
+    };
+    saveSession(session);
+    return session;
+  },
+
   logout() { clearSession(); },
   getSession,
   getUser: () => getSession()?.user ?? null,

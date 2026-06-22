@@ -151,9 +151,58 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->supabaseUser;
-        $profile = $this->supabase->getProfile($user['id']);
-        return response()->json(['user' => array_merge($user, $profile ?? [])]);
+        $supabaseUser = $request->supabaseUser;
+        $profile      = $this->supabase->getProfile($supabaseUser['id']);
+
+        // First-time OAuth login — auto-create a profile
+        if (!$profile) {
+            $meta        = $supabaseUser['user_metadata'] ?? [];
+            $displayName = $meta['full_name'] ?? $meta['name']
+                        ?? explode('@', $supabaseUser['email'])[0];
+            $avatarUrl   = $meta['avatar_url'] ?? null;
+
+            // Build a clean username from provider handle or email prefix
+            $raw  = $meta['user_name'] ?? $meta['preferred_username']
+                  ?? preg_replace('/[^a-z0-9]/', '_', strtolower(explode('@', $supabaseUser['email'])[0]));
+            $base = substr(preg_replace('/_+/', '_', trim($raw, '_')), 0, 20);
+
+            $username = $base;
+            $attempt  = 1;
+            while ($this->supabase->getProfileByUsername($username)) {
+                $username = $base . '_' . $attempt++;
+            }
+
+            try {
+                $this->supabase->insertProfile([
+                    'id'           => $supabaseUser['id'],
+                    'username'     => $username,
+                    'display_name' => $displayName,
+                    'avatar_url'   => $avatarUrl,
+                    'bio'          => null,
+                ]);
+                $profile = $this->supabase->getProfile($supabaseUser['id']);
+            } catch (\Exception $e) {
+                \Log::error('OAuth profile creation failed: ' . $e->getMessage());
+            }
+        }
+
+        return response()->json([
+            'access_token'  => $request->bearerToken(),
+            'refresh_token' => '',
+            'expires_in'    => 3600,
+            'user' => [
+                'id'             => $supabaseUser['id'],
+                'email'          => $supabaseUser['email'],
+                'role'           => $profile['role']           ?? $supabaseUser['role'] ?? 'registered',
+                'username'       => $profile['username']       ?? null,
+                'display_name'   => $profile['display_name']   ?? null,
+                'avatar_url'     => $profile['avatar_url']     ?? null,
+                'bio'            => $profile['bio']            ?? null,
+                'birthday'       => $profile['birthday']       ?? null,
+                'zodiac_sign'    => $profile['zodiac_sign']    ?? null,
+                'birthday_public'=> $profile['birthday_public'] ?? true,
+            ],
+        ]);
     }
 
     public function setAdmin(Request $request): JsonResponse
