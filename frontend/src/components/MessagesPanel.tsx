@@ -25,9 +25,15 @@ export default function MessagesPanel({
   const [msgText, setMsgText]                 = useState('');
   const [sending, setSending]                 = useState(false);
   const [minimized, setMinimized]             = useState(false);
-  const bottomRef  = useRef<HTMLDivElement>(null);
-  const inputRef   = useRef<HTMLInputElement>(null);
-  const channelRef = useRef<ReturnType<typeof createRealtimeClient> | null>(null);
+  const [otherTyping, setOtherTyping]         = useState(false);
+
+  const bottomRef        = useRef<HTMLDivElement>(null);
+  const inputRef         = useRef<HTMLInputElement>(null);
+  const clientRef        = useRef<ReturnType<typeof createRealtimeClient> | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const channelRef       = useRef<any>(null);
+  const typingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastBroadcastRef = useRef<number>(0);
 
   const loadConversations = useCallback(async () => {
     setConvsLoading(true);
@@ -56,9 +62,9 @@ export default function MessagesPanel({
     if (!session?.access_token) return;
 
     const client = createRealtimeClient(session.access_token);
-    channelRef.current = client;
+    clientRef.current = client;
 
-    client
+    const channel = client
       .channel(`msgs:${activeConvId}`)
       .on('postgres_changes', {
         event: 'INSERT',
@@ -75,27 +81,45 @@ export default function MessagesPanel({
         ));
         if (newMsg.sender_id !== user.id) {
           messagesApi.markRead(activeConvId).catch(() => {});
+          // Clear typing indicator when the other user actually sends
+          setOtherTyping(false);
+          if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
         }
+      })
+      .on('broadcast', { event: 'typing' }, () => {
+        setOtherTyping(true);
+        if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = setTimeout(() => setOtherTyping(false), 3000);
+      })
+      .on('broadcast', { event: 'stopped' }, () => {
+        setOtherTyping(false);
+        if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       })
       .subscribe();
 
-    return () => { client.removeAllChannels(); };
+    channelRef.current = channel;
+
+    return () => {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      setOtherTyping(false);
+      client.removeAllChannels();
+    };
   }, [activeConvId, user.id]);
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages or when typing indicator appears
   useEffect(() => {
     if (!minimized) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [msgs, minimized]);
+  }, [msgs, otherTyping, minimized]);
 
   // Focus input when conversation opens
   useEffect(() => {
     if (activeConvId && !minimized) setTimeout(() => inputRef.current?.focus(), 80);
   }, [activeConvId, minimized]);
 
-  // Load conversations when panel opens; reset everything (including minimize state) when fully closed
+  // Load conversations when panel opens; reset everything when fully closed
   useEffect(() => {
     if (open) loadConversations();
-    else { setActiveConvId(null); setActiveOtherUser(null); setMsgs([]); setMinimized(false); }
+    else { setActiveConvId(null); setActiveOtherUser(null); setMsgs([]); setMinimized(false); setOtherTyping(false); }
   }, [open, loadConversations]);
 
   // Open a specific conversation from outside (e.g., profile modal "Message" button)
@@ -117,7 +141,16 @@ export default function MessagesPanel({
     })();
   }, [initialUserId, open]); // eslint-disable-line
 
+  // Throttled broadcast: only fire once per 800ms while user is typing
+  function broadcastTyping() {
+    const now = Date.now();
+    if (now - lastBroadcastRef.current < 800) return;
+    lastBroadcastRef.current = now;
+    channelRef.current?.send({ type: 'broadcast', event: 'typing', payload: {} }).catch(() => {});
+  }
+
   async function handleSelectConv(conv: Conversation) {
+    setOtherTyping(false);
     setActiveConvId(conv.id);
     setActiveOtherUser(conv.other_user);
     await loadMessages(conv.id);
@@ -128,9 +161,10 @@ export default function MessagesPanel({
     const text = msgText.trim();
     setSending(true);
     setMsgText('');
+    // Tell the other side we stopped typing
+    channelRef.current?.send({ type: 'broadcast', event: 'stopped', payload: {} }).catch(() => {});
     try {
       await messagesApi.send(activeConvId, text);
-      // message appears via Realtime subscription
     } catch { toast('Failed to send'); setMsgText(text); }
     finally { setSending(false); }
   }
@@ -150,8 +184,6 @@ export default function MessagesPanel({
       : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
-  // Messenger-style grouping: consecutive messages from the same sender within 5 min
-  // get clustered — tighter spacing, flattened inner corners, single shared avatar/timestamp.
   const GROUP_GAP_MS = 5 * 60 * 1000;
   function isGroupStart(i: number) {
     const m = msgs[i], prev = msgs[i - 1];
@@ -184,7 +216,6 @@ export default function MessagesPanel({
 
   const totalUnread = conversations.reduce((s, c) => s + (c.unread_count || 0), 0);
 
-  // ── Minimized: collapse to a Messenger-style floating chat head ──
   if (minimized) {
     const bubbleUser = activeOtherUser;
     return (
@@ -260,7 +291,7 @@ export default function MessagesPanel({
           {activeConvId ? (
             <>
               <div style={s.threadHeader}>
-                <button style={s.backBtn} onClick={() => { setActiveConvId(null); setActiveOtherUser(null); setMsgs([]); }}>
+                <button style={s.backBtn} onClick={() => { setActiveConvId(null); setActiveOtherUser(null); setMsgs([]); setOtherTyping(false); }}>
                   ←
                 </button>
                 <div style={{ ...s.avatar, width: '32px', height: '32px', fontSize: '.75rem', background: activeOtherUser?.avatar_url ? 'transparent' : getColor(activeOtherUser?.display_name || '?') }}>
@@ -324,6 +355,26 @@ export default function MessagesPanel({
                     </div>
                   );
                 })}
+
+                {/* ── Typing indicator ── */}
+                {otherTyping && (
+                  <div style={{ ...s.msgRow, justifyContent: 'flex-start', marginBottom: '8px', marginTop: '4px' }}>
+                    <div style={{ width: '24px', flexShrink: 0 }}>
+                      <div style={{ ...s.avatar, width: '24px', height: '24px', fontSize: '.55rem', background: activeOtherUser?.avatar_url ? 'transparent' : getColor(activeOtherUser?.display_name || '?') }}>
+                        {activeOtherUser?.avatar_url
+                          ? <img src={activeOtherUser.avatar_url} alt="" style={s.avatarImg} />
+                          : getInitial(activeOtherUser?.display_name || activeOtherUser?.username || '?')
+                        }
+                      </div>
+                    </div>
+                    <div style={s.typingBubble}>
+                      <span className="typing-dot" />
+                      <span className="typing-dot" style={{ animationDelay: '160ms' }} />
+                      <span className="typing-dot" style={{ animationDelay: '320ms' }} />
+                    </div>
+                  </div>
+                )}
+
                 <div ref={bottomRef} />
               </div>
 
@@ -333,7 +384,10 @@ export default function MessagesPanel({
                   style={s.input}
                   placeholder="Aa"
                   value={msgText}
-                  onChange={e => setMsgText(e.target.value)}
+                  onChange={e => {
+                    setMsgText(e.target.value);
+                    if (e.target.value) broadcastTyping();
+                  }}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
                   maxLength={1000}
                 />
@@ -364,8 +418,19 @@ const floatingStyles = `
   from { opacity: 0; transform: scale(.6); }
   to   { opacity: 1; transform: scale(1); }
 }
-.msgr-panel { animation: msgrSlideUp .22s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: .45; }
+  30%           { transform: translateY(-5px); opacity: 1; }
+}
+.msgr-panel    { animation: msgrSlideUp .22s cubic-bezier(.2,.9,.3,1.2); }
 .msgr-chathead { animation: msgrPopIn .2s cubic-bezier(.34,1.56,.64,1); }
+.typing-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.65);
+  animation: typingBounce 1.3s ease infinite;
+}
 @media (max-width: 480px) {
   .msgr-panel {
     width: 100vw !important;
@@ -415,6 +480,11 @@ const s: Record<string, React.CSSProperties> = {
   bubbleThem: { background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.06)', color: 'var(--text)' },
   msgTime: { fontSize: '.58rem', color: 'var(--text-muted)', marginTop: '.15rem', padding: '0 .3rem' },
   dayDivider: { textAlign: 'center' as const, fontSize: '.6rem', color: 'var(--text-muted)', letterSpacing: '.08em', margin: '.7rem 0 .5rem', opacity: .7 },
+  typingBubble: {
+    background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.06)',
+    borderRadius: '18px 18px 18px 4px',
+    padding: '.5rem .75rem', display: 'flex', alignItems: 'center', gap: '4px', minWidth: '52px',
+  },
   inputRow: { padding: '.6rem .7rem', borderTop: '1px solid rgba(201,168,76,.1)', display: 'flex', gap: '.5rem', flexShrink: 0, alignItems: 'center' },
   input: { flex: 1, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(201,168,76,.15)', borderRadius: '50px', padding: '.5rem 1rem', color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", fontSize: '.82rem', outline: 'none' },
   sendBtn: { width: '34px', height: '34px', borderRadius: '50%', background: 'rgba(201,168,76,.18)', border: '1px solid rgba(201,168,76,.3)', color: 'var(--gold)', cursor: 'pointer', fontSize: '.85rem', flexShrink: 0, transition: 'opacity .2s' },
