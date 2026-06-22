@@ -43,8 +43,9 @@ class AuthController extends Controller
             return response()->json(['error' => 'Username already taken.'], 422);
         }
 
-        // Sign up via Supabase Auth
-        $res = $this->http()->post("{$this->supabaseUrl}/auth/v1/signup", [
+        // Sign up via Supabase Auth — pass redirect_to so confirmation email links back to the app
+        $redirectTo = rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/');
+        $res = $this->http()->post("{$this->supabaseUrl}/auth/v1/signup?redirect_to=" . urlencode($redirectTo), [
             'email'    => $data['email'],
             'password' => $data['password'],
             'data'     => [
