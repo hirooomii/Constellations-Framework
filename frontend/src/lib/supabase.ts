@@ -17,9 +17,13 @@ export async function signInWithProvider(provider: 'facebook' | 'github') {
   const client = createClient(supabaseUrl, supabaseAnon, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const scopes = provider === 'facebook' ? 'email,public_profile' : undefined;
   const { error } = await client.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: typeof window !== 'undefined' ? window.location.origin : '' },
+    options: {
+      redirectTo: typeof window !== 'undefined' ? window.location.origin : '',
+      ...(scopes ? { scopes } : {}),
+    },
   });
   if (error) throw new Error(error.message);
 }

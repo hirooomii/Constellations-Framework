@@ -150,7 +150,7 @@ class AuthController extends Controller
         return response()->json($res->json());
     }
 
-    public function me(Request $request): JsonResponse
+   public function me(Request $request): JsonResponse
     {
         $supabaseUser = $request->supabaseUser;
         $profile      = $this->supabase->getProfile($supabaseUser['id']);
@@ -159,13 +159,29 @@ class AuthController extends Controller
         if (!$profile) {
             $meta        = $supabaseUser['user_metadata'] ?? [];
             $displayName = $meta['full_name'] ?? $meta['name']
-                        ?? explode('@', $supabaseUser['email'])[0];
+                        ?? (!empty($supabaseUser['email']) ? explode('@', $supabaseUser['email'])[0] : 'User');
             $avatarUrl   = $meta['avatar_url'] ?? null;
 
-            // Build a clean username from provider handle or email prefix
-            $raw  = $meta['user_name'] ?? $meta['preferred_username']
-                  ?? preg_replace('/[^a-z0-9]/', '_', strtolower(explode('@', $supabaseUser['email'])[0]));
+            // Build a clean username from provider handle, email, or display name
+            $raw = $meta['user_name'] ?? $meta['preferred_username'] ?? null;
+
+            if (!$raw) {
+                if (!empty($supabaseUser['email'])) {
+                    $raw = strtolower(explode('@', $supabaseUser['email'])[0]);
+                } elseif (!empty($displayName)) {
+                    $raw = strtolower($displayName);
+                } else {
+                    $raw = 'user';
+                }
+            }
+
+            $raw  = preg_replace('/[^a-z0-9]/', '_', strtolower($raw));
             $base = substr(preg_replace('/_+/', '_', trim($raw, '_')), 0, 20);
+
+            // Guard against an empty/blank result after sanitizing
+            if ($base === '' || $base === '_') {
+                $base = 'user_' . substr($supabaseUser['id'], 0, 8);
+            }
 
             $username = $base;
             $attempt  = 1;
@@ -198,10 +214,10 @@ class AuthController extends Controller
                 'username'       => $profile['username']       ?? null,
                 'display_name'   => $profile['display_name']   ?? null,
                 'avatar_url'     => $profile['avatar_url']     ?? null,
-                'bio'            => $profile['bio']            ?? null,
-                'birthday'       => $profile['birthday']       ?? null,
-                'zodiac_sign'    => $profile['zodiac_sign']    ?? null,
-                'birthday_public'=> $profile['birthday_public'] ?? true,
+                'bio'            => $profile['bio']             ?? null,
+                'birthday'       => $profile['birthday']        ?? null,
+                'zodiac_sign'    => $profile['zodiac_sign']      ?? null,
+                'birthday_public'=> $profile['birthday_public']  ?? true,
             ],
         ]);
     }
