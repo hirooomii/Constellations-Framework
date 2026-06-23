@@ -13,7 +13,7 @@ export function createRealtimeClient(accessToken: string) {
 }
 
 // Trigger OAuth redirect (Facebook, GitHub)
-export async function signInWithProvider(provider: 'facebook' | 'github') {
+export async function signInWithProvider(provider: 'facebook' | 'github' | 'google') {
   const client = createClient(supabaseUrl, supabaseAnon, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
