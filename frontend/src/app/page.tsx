@@ -64,6 +64,14 @@ function HomeInner() {
     setLoading(false);
   }, [loadPublished, loadScheduled]);
 
+  const [oauthLoading, setOauthLoading] = useState(() => {
+  // Check synchronously on first render if there's an OAuth token in the URL
+  if (typeof window !== 'undefined') {
+    return window.location.hash.includes('access_token');
+  }
+  return false;
+});
+
   // Load feed on login / logout
   useEffect(() => {
     const uid = user?.id;
@@ -93,11 +101,15 @@ function HomeInner() {
   useEffect(() => {
     const tokens = extractOAuthTokens();
     if (!tokens) return;
+
+    setOauthLoading(true); // show loading spinner
     window.history.replaceState(null, '', window.location.pathname);
+
     authApi.oauthSync(tokens.access_token, tokens.refresh_token)
       .then(session => oauthLogin(session))
-      .catch(() => showToast('Social login failed. Please try again.'));
-  }, []); // eslint-disable-line
+      .catch(() => showToast('Social login failed. Please try again.'))
+      .finally(() => setOauthLoading(false));
+  }, []);
 
   // Poll unread messages
   useEffect(() => {
@@ -170,14 +182,14 @@ function HomeInner() {
       <div ref={particlesRef} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }} />
 
       {/* ═══ Loading (session restoring) ═══ */}
-      {authLoading && (
+      {authLoading || oauthLoading && (
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 10 }}>
           <img src="/icon.png" alt="Celestia" style={{ width: '64px', height: '64px', borderRadius: '14px', opacity: .7, filter: 'drop-shadow(0 0 14px rgba(201,168,76,.5))' }} />
         </div>
       )}
 
       {/* ═══ Landing page (not logged in) ═══ */}
-      {!authLoading && !user && (
+      {!authLoading && !oauthLoading && !user && (
         <div style={s.landingWrap}>
           <div style={s.landingBrand}>
             <img src="/icon.png" alt="Celestia" style={s.landingLogo} />
@@ -239,7 +251,7 @@ function HomeInner() {
       )}
 
       {/* ═══ Feed (logged in) ═══ */}
-      {!authLoading && user && (
+      {!authLoading  && !oauthLoading && user && (
         <>
           {/* Top Navbar */}
           <nav style={s.navbar}>
