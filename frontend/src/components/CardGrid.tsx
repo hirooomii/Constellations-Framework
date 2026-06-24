@@ -15,6 +15,7 @@ interface CardGridProps {
   cards: Card[];
   isAdmin: boolean;
   currentUserId?: string;
+  feedMode?: string;
   onCardClick: (card: Card) => void;
   onEdit: (card: Card) => void;
   onDelete: (card: Card) => void;
@@ -152,7 +153,7 @@ function UploadingCard({ card }: { card: Card }) {
   );
 }
 
-export default function CardGrid({ cards, isAdmin, currentUserId, onCardClick, onEdit, onDelete, onAuthorClick, loading }: CardGridProps) {
+export default function CardGrid({ cards, isAdmin, currentUserId, feedMode, onCardClick, onEdit, onDelete, onAuthorClick, loading }: CardGridProps) {
   const [visible, setVisible] = useState<Set<string>>(new Set());
   const [hovered, setHovered] = useState<string | null>(null);
   const refs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -198,61 +199,53 @@ export default function CardGrid({ cards, isAdmin, currentUserId, onCardClick, o
   }
 
   if (cards.length === 0) {
+    const isNoFollows = feedMode === 'no-follows';
     return (
       <>
         <style>{shimmerStyle}</style>
-        <div style={{ 
-          display: 'flex', justifyContent: 'center', alignItems: 'center',
-          minHeight: '60vh', padding: '2rem', position: 'relative', zIndex: 10 
-        }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', padding: '2rem', position: 'relative', zIndex: 10 }}>
           <div style={{
             maxWidth: '380px', width: '100%', textAlign: 'center',
             background: 'rgba(26,21,16,.85)', backdropFilter: 'blur(14px)',
             border: '1px solid rgba(201,168,76,.16)', borderRadius: '20px',
             padding: '2.5rem 2rem',
           }}>
-            {/* Animated star */}
-            <div style={{ fontSize: '3rem', marginBottom: '1rem', animation: 'skeletonPulse 2.5s ease infinite' }}>
-              ✦
-            </div>
-            <h3 style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: '1.2rem', color: 'var(--text)',
-              marginBottom: '.6rem', fontWeight: 700,
-            }}>
-              The sky is empty
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', animation: 'skeletonPulse 2.5s ease infinite' }}>✦</div>
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.2rem', color: 'var(--text)', marginBottom: '.6rem', fontWeight: 700 }}>
+              {isNoFollows ? 'The sky is empty' : 'No verses yet'}
             </h3>
-            <p style={{
-              fontSize: '.82rem', color: 'var(--text-muted)',
-              lineHeight: 1.6, marginBottom: '1.75rem',
-            }}>
-              You haven't followed anyone yet. Follow poets to see their verses light up your constellation.
+            <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '1.75rem' }}>
+              {isNoFollows
+                ? "You haven't followed anyone yet. Follow poets to see their verses light up your constellation."
+                : 'No verses have been published yet. Check back soon!'}
             </p>
 
-            {/* Decorative fake cards hint */}
-            <div style={{ display: 'flex', gap: '.6rem', justifyContent: 'center', marginBottom: '1.75rem' }}>
-              {[...Array(3)].map((_, i) => (
-                <div key={i} style={{
-                  width: '64px', height: '85px', borderRadius: '10px',
-                  background: 'rgba(255,255,255,.04)',
-                  border: '1px solid rgba(201,168,76,.1)',
-                  opacity: 1 - i * 0.25,
-                  transform: i === 1 ? 'translateY(-6px)' : 'none',
-                  position: 'relative', overflow: 'hidden',
-                }}>
-                  <div style={{
-                    position: 'absolute', inset: 0,
-                    background: 'linear-gradient(105deg, rgba(201,168,76,0) 30%, rgba(201,168,76,.07) 48%, rgba(255,220,120,.1) 52%, rgba(201,168,76,0) 70%)',
-                    backgroundSize: '200% 100%',
-                    animation: `shimmerMove ${1.8 + i * 0.3}s ease-in-out infinite`,
-                  }} />
+            {isNoFollows && (
+              <>
+                <div style={{ display: 'flex', gap: '.6rem', justifyContent: 'center', marginBottom: '1.75rem' }}>
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} style={{
+                      width: '64px', height: '85px', borderRadius: '10px',
+                      background: 'rgba(255,255,255,.04)',
+                      border: '1px solid rgba(201,168,76,.1)',
+                      opacity: 1 - i * 0.25,
+                      transform: i === 1 ? 'translateY(-6px)' : 'none',
+                      position: 'relative', overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        position: 'absolute', inset: 0,
+                        background: 'linear-gradient(105deg, rgba(201,168,76,0) 30%, rgba(201,168,76,.07) 48%, rgba(255,220,120,.1) 52%, rgba(201,168,76,0) 70%)',
+                        backgroundSize: '200% 100%',
+                        animation: `shimmerMove ${1.8 + i * 0.3}s ease-in-out infinite`,
+                      }} />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-
-            <p style={{ fontSize: '.72rem', color: 'var(--gold)', opacity: .7, letterSpacing: '.08em' }}>
-              🔍 Use the search bar above to discover poets
-            </p>
+                <p style={{ fontSize: '.72rem', color: 'var(--gold)', opacity: .7, letterSpacing: '.08em' }}>
+                  🔍 Use the search bar above to discover poets
+                </p>
+              </>
+            )}
           </div>
         </div>
       </>

@@ -40,12 +40,14 @@ function HomeInner() {
 
   const particlesRef  = useRef<HTMLDivElement>(null);
   const prevUserIdRef = useRef<string | undefined>(undefined);
+  const [feedMode, setFeedMode] = useState<string>('all');
 
   const loadPublished = useCallback(async () => {
     try {
       const data = await cardsApi.list();
       if (data && typeof data === 'object' && 'cards' in data) {
         setPublishedCards((data as any).cards);
+        setFeedMode((data as any).mode ?? 'all'); // ← add this
       } else {
         setPublishedCards(data as any);
       }
@@ -326,6 +328,7 @@ function HomeInner() {
                   cards={paginatedCards}
                   isAdmin={isAdmin}
                   currentUserId={user.id}
+                  feedMode={feedMode}   
                   onCardClick={setViewCard}
                   onEdit={setEditCard}
                   onDelete={setDeleteCard}

@@ -62,10 +62,9 @@ class CardController extends Controller
         $followingIds = $this->supabase->getFollowing($user['id']);
 
         if (empty($followingIds)) {
-            $cards = $this->supabase->getPublishedCards();
             return response()->json([
-                'cards'   => $cards,
-                'mode'    => 'all',
+                'cards'   => [],           
+                'mode'    => 'no-follows',
                 'message' => 'Follow other poets to customize your feed!',
             ]);
         }
