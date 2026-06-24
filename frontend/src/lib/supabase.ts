@@ -13,11 +13,18 @@ export function createRealtimeClient(accessToken: string) {
 }
 
 // Trigger OAuth redirect (Facebook, GitHub)
-export async function signInWithProvider(provider: 'facebook' | 'github' | 'google') {
+export async function signInWithProvider(provider: 'facebook' | 'github' | 'google' | 'discord') {
   const client = createClient(supabaseUrl, supabaseAnon, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const scopes = provider === 'facebook' ? 'email,public_profile' : undefined;
+
+  // Discord needs 'identify email' scopes
+  const scopes = provider === 'facebook' 
+    ? 'email,public_profile' 
+    : provider === 'discord' 
+    ? 'identify email' 
+    : undefined;
+
   const { error } = await client.auth.signInWithOAuth({
     provider,
     options: {
