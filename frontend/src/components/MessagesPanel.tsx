@@ -88,7 +88,6 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
         filter: `conversation_id=eq.${activeConv.id}`,
       }, (payload) => {
         const newMsg = payload.new as Message;
-        // Only add messages from OTHER users — own messages are added immediately in handleSend
         if (newMsg.sender_id === user.id) return;
         setMsgs(prev => prev.find(m => m.id === newMsg.id) ? prev : [...prev, { ...newMsg, reactions: {} }]);
         setConversations(prev => prev.map(c =>
@@ -99,6 +98,46 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
         messagesApi.markRead(activeConv.id).catch(() => {});
         setOtherTyping(false);
         if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      })
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'message_reactions',
+      }, (payload) => {
+        const row = (payload.new ?? payload.old) as { message_id: string; user_id: string; emoji: string };
+        const { message_id, user_id, emoji } = row;
+
+        setMsgs(prev => {
+          const msg = prev.find(m => m.id === message_id);
+          if (!msg) return prev; // not in this conversation, ignore
+
+          return prev.map(m => {
+            if (m.id !== message_id) return m;
+            const reactions = { ...(m.reactions ?? {}) };
+
+            if (payload.eventType === 'DELETE') {
+              const cur = reactions[emoji];
+              if (!cur) return m;
+              const n = cur.count - 1;
+              if (n <= 0) {
+                delete reactions[emoji];
+              } else {
+                reactions[emoji] = {
+                  count: n,
+                  mine: user_id === user.id ? false : cur.mine,
+                };
+              }
+            } else {
+              // INSERT — skip own reactions since optimistic update already handled it
+              if (user_id === user.id) return m;
+              const cur = reactions[emoji];
+              reactions[emoji] = {
+                count: (cur?.count ?? 0) + 1,
+                mine: cur?.mine ?? false,
+              };
+            }
+
+            return { ...m, reactions };
+          });
+        });
       })
       .on('broadcast', { event: 'typing' }, () => {
         setOtherTyping(true);
