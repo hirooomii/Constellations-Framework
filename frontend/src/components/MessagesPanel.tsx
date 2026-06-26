@@ -743,7 +743,7 @@ const css = `
 }
 
 /* Message bubble hover actions */
-.msg-wrap { position:relative; max-width:72%; }
+.msg-wrap { position:relative; max-width:72%; min-width:0; overflow:visible; }
 .msg-actions {
   position:absolute; top:-34px;
   display:flex; align-items:center; gap:1px;
@@ -778,7 +778,7 @@ const s: Record<string, React.CSSProperties> = {
     width: 360, height: 560, maxHeight: '80vh',
     background: 'var(--dark2)', border: '1px solid rgba(201,168,76,.18)',
     borderRadius: 18, boxShadow: '0 12px 40px rgba(0,0,0,.45)',
-    display: 'flex', overflow: 'hidden',
+    display: 'flex', overflow: 'hidden',   // overflow:hidden already here ✓
   },
   hidden:        { display: 'none' } as React.CSSProperties,
   sidebar:       { width: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column', height: '100%' },
@@ -805,7 +805,10 @@ const s: Record<string, React.CSSProperties> = {
   backBtn:       { background: 'none', border: 'none', color: 'var(--gold)', cursor: 'pointer', fontSize: '1rem', padding: 0 },
   groupInfo:     { padding: '.7rem 1rem', borderBottom: '1px solid rgba(201,168,76,.1)', background: 'rgba(18,14,9,.5)', flexShrink: 0, overflowY: 'auto' as const, maxHeight: 180 },
   leaveBtn:      { marginTop: '.5rem', padding: '.35rem .8rem', background: 'rgba(224,64,90,.12)', color: '#e0405a', border: '1px solid rgba(224,64,90,.25)', borderRadius: 8, cursor: 'pointer', fontSize: '.72rem', fontWeight: 600 },
-  msgList:       { flex: 1, overflowY: 'auto' as const, padding: '.8rem .8rem .4rem', display: 'flex', flexDirection: 'column' as const },
+  msgList: { 
+    flex: 1, overflowY: 'auto' as const, overflowX: 'hidden' as const,  // ← add overflowX
+    padding: '.8rem .8rem .4rem', display: 'flex', flexDirection: 'column' as const 
+  },
   msgRow:        { display: 'flex', alignItems: 'flex-end', gap: '.4rem' },
   senderLabel:   { fontSize: '.63rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '.1rem' },
   bubble:        { padding: '.45rem .75rem', fontSize: '.82rem', lineHeight: 1.4, wordBreak: 'break-word' as const },
@@ -817,7 +820,14 @@ const s: Record<string, React.CSSProperties> = {
   replyBlockMine:{ background: 'rgba(0,0,0,.15)', borderLeftColor: 'rgba(0,0,0,.3)' },
   replyName:     { display: 'block', fontSize: '.62rem', color: 'var(--gold)', fontWeight: 700 },
   replyText:     { display: 'block', fontSize: '.62rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  pills:         { display: 'flex', flexWrap: 'wrap' as const, gap: '.2rem', padding: '.25rem .2rem .1rem' },
+  pills: { 
+    display: 'flex', 
+    flexWrap: 'wrap' as const, 
+    gap: '.2rem', 
+    padding: '.25rem .2rem .1rem',
+    maxWidth: '100%',
+    overflow: 'hidden',
+  },
   pill:          { background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 50, padding: '.12rem .4rem', fontSize: '.78rem', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center' },
   pillMine:      { background: 'rgba(201,168,76,.15)', borderColor: 'rgba(201,168,76,.38)' },
   typingBubble:  { background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.06)', borderRadius: '18px 18px 18px 4px', padding: '.5rem .75rem', display: 'flex', alignItems: 'center', gap: 4, minWidth: 52 },
