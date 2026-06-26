@@ -586,8 +586,9 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
                         style={{
                           ...s.msgRow,
                           justifyContent: isMine ? 'flex-end' : 'flex-start',
-                          // Extra bottom margin when action bar is below the bubble
-                          marginBottom: end ? '10px' : '2px',
+                          // Extra bottom margin when message carries a reaction badge,
+                          // so the next bubble doesn't crowd the overlapping pill
+                          marginBottom: hasReact ? '16px' : (end ? '10px' : '2px'),
                           marginTop: start && !showDay ? '8px' : 0,
                         }}
                       >
@@ -602,7 +603,7 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
                           </div>
                         )}
 
-                        {/* Bubble wrapper — hover reveals action bar */}
+                        {/* Bubble wrapper — hover reveals action bar above the bubble */}
                         <div className={`msg-wrap ${isMine ? 'msg-mine' : 'msg-them'}`}>
                           {/* Reply preview inside bubble */}
                           {m.parent_id && (
@@ -612,18 +613,7 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
                             </div>
                           )}
 
-                          {/* Message bubble */}
-                          <div style={{
-                            ...s.bubble,
-                            ...(isMine ? s.bubbleMine : s.bubbleThem),
-                            ...bubbleRadius(isMine, start && !m.parent_id),
-                            borderTopLeftRadius: m.parent_id ? 0 : undefined,
-                            borderTopRightRadius: m.parent_id ? 0 : undefined,
-                          }}>
-                            {m.body}
-                          </div>
-
-                          {/* Action bar — now BELOW the bubble */}
+                          {/* Action bar — floats above the bubble on hover */}
                           <div className={`msg-actions ${isMine ? 'actions-right' : 'actions-left'}`}>
                             {CHAT_EMOJIS.map(emoji => (
                               <button
@@ -638,24 +628,36 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
                             >↩</button>
                           </div>
 
-                          {/* Timestamp (when no reactions) */}
-                          {end && !hasReact && (
-                            <div style={{ ...s.msgTime, textAlign: isMine ? 'right' : 'left' }}>{fmtTime(m.created_at)}</div>
-                          )}
+                          {/* Message bubble — reaction badge overlaps its bottom corner, Messenger-style */}
+                          <div style={{
+                            position: 'relative',
+                            ...s.bubble,
+                            ...(isMine ? s.bubbleMine : s.bubbleThem),
+                            ...bubbleRadius(isMine, start && !m.parent_id),
+                            borderTopLeftRadius: m.parent_id ? 0 : undefined,
+                            borderTopRightRadius: m.parent_id ? 0 : undefined,
+                          }}>
+                            {m.body}
 
-                          {/* Reaction pills */}
-                          {hasReact && (
-                            <div style={{ ...s.pills, justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
-                              {Object.entries(m.reactions!).map(([emoji, { count, mine }]) => (
-                                <button
-                                  key={emoji}
-                                  style={{ ...s.pill, ...(mine ? s.pillMine : {}) }}
-                                  onClick={() => handleToggleReaction(m.id, emoji)}
-                                >
-                                  {emoji}{count > 1 && <span style={{ fontSize: '.62rem', marginLeft: '.15rem' }}>{count}</span>}
-                                </button>
-                              ))}
-                              <span style={{ fontSize: '.54rem', color: 'var(--text-muted)', alignSelf: 'center', marginLeft: '.2rem' }}>{fmtTime(m.created_at)}</span>
+                            {hasReact && (
+                              <div style={{ ...s.reactBadge, ...(isMine ? { left: -6 } : { right: -6 }) }}>
+                                {Object.entries(m.reactions!).map(([emoji, { count, mine }]) => (
+                                  <button
+                                    key={emoji}
+                                    style={{ ...s.reactBadgeEmoji, ...(mine ? s.reactBadgeMine : {}) }}
+                                    onClick={() => handleToggleReaction(m.id, emoji)}
+                                  >
+                                    {emoji}{count > 1 && <span style={{ fontSize: '.55rem', marginLeft: 1 }}>{count}</span>}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Timestamp */}
+                          {end && (
+                            <div style={{ ...s.msgTime, textAlign: isMine ? 'right' : 'left', marginTop: hasReact ? '8px' : '2px' }}>
+                              {fmtTime(m.created_at)}
                             </div>
                           )}
                         </div>
@@ -752,10 +754,15 @@ const css = `
   position: relative;
   max-width: 72%;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Action bar — positioned BELOW the bubble */
+/* Action bar — floats just ABOVE the bubble, doesn't push layout */
 .msg-actions {
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 4px;
   display: flex;
   align-items: center;
   gap: 1px;
@@ -769,15 +776,12 @@ const css = `
   white-space: nowrap;
   z-index: 20;
   box-shadow: 0 4px 14px rgba(0,0,0,.5);
-  margin-top: 4px;
-  /* inline so it doesn't stretch full width */
   width: fit-content;
 }
 .msg-wrap:hover .msg-actions { opacity: 1; pointer-events: all; }
 
-/* Align action bar to the correct side */
-.actions-left  { margin-right: auto; }
-.actions-right { margin-left: auto; }
+.actions-left  { left: 0; }
+.actions-right { right: 0; }
 
 .act-btn {
   background: none; border: none; cursor: pointer; font-size: .92rem;
@@ -835,15 +839,36 @@ const s: Record<string, React.CSSProperties> = {
   bubble:        { padding: '.45rem .75rem', fontSize: '.82rem', lineHeight: 1.4, wordBreak: 'break-word' as const },
   bubbleMine:    { background: 'linear-gradient(135deg,#c9a84c,#8b6914)', color: 'var(--dark)' },
   bubbleThem:    { background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.06)', color: 'var(--text)' },
-  msgTime:       { fontSize: '.57rem', color: 'var(--text-muted)', marginTop: '.15rem', padding: '0 .3rem' },
+  msgTime:       { fontSize: '.57rem', color: 'var(--text-muted)', padding: '0 .3rem' },
   dayDiv:        { textAlign: 'center' as const, fontSize: '.6rem', color: 'var(--text-muted)', letterSpacing: '.07em', margin: '.7rem 0 .5rem', opacity: .7 },
   replyBlock:    { background: 'rgba(255,255,255,.06)', borderLeft: '2.5px solid rgba(201,168,76,.45)', borderRadius: '6px 10px 0 0', padding: '.22rem .6rem', marginBottom: -1 },
   replyBlockMine:{ background: 'rgba(0,0,0,.15)', borderLeftColor: 'rgba(0,0,0,.3)' },
   replyName:     { display: 'block', fontSize: '.62rem', color: 'var(--gold)', fontWeight: 700 },
   replyText:     { display: 'block', fontSize: '.62rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  pills:         { display: 'flex', flexWrap: 'wrap' as const, gap: '.2rem', padding: '.25rem .2rem .1rem', maxWidth: '100%', overflow: 'hidden' },
-  pill:          { background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 50, padding: '.12rem .4rem', fontSize: '.78rem', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center' },
-  pillMine:      { background: 'rgba(201,168,76,.15)', borderColor: 'rgba(201,168,76,.38)' },
+  // Messenger-style reaction badge, overlapping the bottom corner of the bubble
+  reactBadge:    {
+    position: 'absolute',
+    bottom: -10,
+    display: 'flex',
+    gap: 2,
+    background: 'var(--dark2)',
+    border: '1.5px solid var(--dark2)',
+    borderRadius: 50,
+    padding: '1px 4px',
+    boxShadow: '0 1px 4px rgba(0,0,0,.4)',
+  },
+  reactBadgeEmoji: {
+    fontSize: '.7rem',
+    display: 'flex',
+    alignItems: 'center',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '0 1px',
+    color: 'var(--text)',
+    lineHeight: 1.2,
+  },
+  reactBadgeMine: { filter: 'brightness(1.15)' },
   typingBubble:  { background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.06)', borderRadius: '18px 18px 18px 4px', padding: '.5rem .75rem', display: 'flex', alignItems: 'center', gap: 4, minWidth: 52 },
   replyBar:      { display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.4rem .75rem', borderTop: '1px solid rgba(201,168,76,.08)', background: 'rgba(201,168,76,.04)' },
   inputRow:      { padding: '.6rem .7rem', borderTop: '1px solid rgba(201,168,76,.1)', display: 'flex', gap: '.5rem', flexShrink: 0, alignItems: 'center' },
