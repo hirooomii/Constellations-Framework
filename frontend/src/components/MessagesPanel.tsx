@@ -83,11 +83,13 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
 
     const channel = client
       .channel(`msgs:${activeConv.id}`)
+      // ── New messages ──────────────────────────────────────────────────────
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'messages',
         filter: `conversation_id=eq.${activeConv.id}`,
       }, (payload) => {
         const newMsg = payload.new as Message;
+        // Only add messages from OTHER users — own messages are added immediately in handleSend
         if (newMsg.sender_id === user.id) return;
         setMsgs(prev => prev.find(m => m.id === newMsg.id) ? prev : [...prev, { ...newMsg, reactions: {} }]);
         setConversations(prev => prev.map(c =>
@@ -99,6 +101,7 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
         setOtherTyping(false);
         if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       })
+      // ── Live reactions ────────────────────────────────────────────────────
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'message_reactions',
       }, (payload) => {
@@ -126,7 +129,7 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
                 };
               }
             } else {
-              // INSERT — skip own reactions since optimistic update already handled it
+              // INSERT — skip own reactions, optimistic update already handled it
               if (user_id === user.id) return m;
               const cur = reactions[emoji];
               reactions[emoji] = {
@@ -139,6 +142,7 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
           });
         });
       })
+      // ── Typing indicators ─────────────────────────────────────────────────
       .on('broadcast', { event: 'typing' }, () => {
         setOtherTyping(true);
         if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
@@ -582,7 +586,8 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
                         style={{
                           ...s.msgRow,
                           justifyContent: isMine ? 'flex-end' : 'flex-start',
-                          marginBottom: hasReact ? '2px' : (end ? '10px' : '2px'),
+                          // Extra bottom margin when action bar is below the bubble
+                          marginBottom: end ? '10px' : '2px',
                           marginTop: start && !showDay ? '8px' : 0,
                         }}
                       >
@@ -599,21 +604,6 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
 
                         {/* Bubble wrapper — hover reveals action bar */}
                         <div className={`msg-wrap ${isMine ? 'msg-mine' : 'msg-them'}`}>
-                          {/* Action bar */}
-                          <div className={`msg-actions ${isMine ? 'actions-left' : 'actions-right'}`}>
-                            {CHAT_EMOJIS.map(emoji => (
-                              <button
-                                key={emoji}
-                                className={`act-btn${m.reactions?.[emoji]?.mine ? ' act-reacted' : ''}`}
-                                onClick={() => handleToggleReaction(m.id, emoji)}
-                              >{emoji}</button>
-                            ))}
-                            <button
-                              className="act-btn act-reply"
-                              onClick={() => setReplyTo({ id: m.id, sender_name: m.sender_name, body: m.body })}
-                            >↩</button>
-                          </div>
-
                           {/* Reply preview inside bubble */}
                           {m.parent_id && (
                             <div style={{ ...s.replyBlock, ...(isMine ? s.replyBlockMine : {}) }}>
@@ -631,6 +621,21 @@ export default function MessagesPanel({ user, open, onClose, toast, initialUserI
                             borderTopRightRadius: m.parent_id ? 0 : undefined,
                           }}>
                             {m.body}
+                          </div>
+
+                          {/* Action bar — now BELOW the bubble */}
+                          <div className={`msg-actions ${isMine ? 'actions-right' : 'actions-left'}`}>
+                            {CHAT_EMOJIS.map(emoji => (
+                              <button
+                                key={emoji}
+                                className={`act-btn${m.reactions?.[emoji]?.mine ? ' act-reacted' : ''}`}
+                                onClick={() => handleToggleReaction(m.id, emoji)}
+                              >{emoji}</button>
+                            ))}
+                            <button
+                              className="act-btn act-reply"
+                              onClick={() => setReplyTo({ id: m.id, sender_name: m.sender_name, body: m.body })}
+                            >↩</button>
                           </div>
 
                           {/* Timestamp (when no reactions) */}
@@ -743,28 +748,46 @@ const css = `
 }
 
 /* Message bubble hover actions */
-.msg-wrap { position:relative; max-width:72%; min-width:0; overflow:visible; }
+.msg-wrap {
+  position: relative;
+  max-width: 72%;
+  min-width: 0;
+}
+
+/* Action bar — positioned BELOW the bubble */
 .msg-actions {
-  position:absolute; top:-34px;
-  display:flex; align-items:center; gap:1px;
-  background:rgba(18,14,9,.97); border:1px solid rgba(201,168,76,.2);
-  border-radius:20px; padding:3px 5px;
-  opacity:0; pointer-events:none; transition:opacity .12s;
-  white-space:nowrap; z-index:20;
-  box-shadow:0 4px 14px rgba(0,0,0,.5);
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  background: rgba(18,14,9,.97);
+  border: 1px solid rgba(201,168,76,.2);
+  border-radius: 20px;
+  padding: 3px 5px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s;
+  white-space: nowrap;
+  z-index: 20;
+  box-shadow: 0 4px 14px rgba(0,0,0,.5);
+  margin-top: 4px;
+  /* inline so it doesn't stretch full width */
+  width: fit-content;
 }
-.msg-wrap:hover .msg-actions { opacity:1; pointer-events:all; }
-.actions-left  { left:0; }
-.actions-right { right:0; }
+.msg-wrap:hover .msg-actions { opacity: 1; pointer-events: all; }
+
+/* Align action bar to the correct side */
+.actions-left  { margin-right: auto; }
+.actions-right { margin-left: auto; }
+
 .act-btn {
-  background:none; border:none; cursor:pointer; font-size:.92rem;
-  padding:3px 4px; border-radius:50%; line-height:1;
-  transition:transform .1s, background .1s;
+  background: none; border: none; cursor: pointer; font-size: .92rem;
+  padding: 3px 4px; border-radius: 50%; line-height: 1;
+  transition: transform .1s, background .1s;
 }
-.act-btn:hover     { transform:scale(1.28); background:rgba(255,255,255,.07); }
-.act-reacted       { background:rgba(201,168,76,.16); }
-.act-reply         { font-size:.75rem; color:rgba(255,255,255,.5); }
-.act-reply:hover   { color:var(--gold); }
+.act-btn:hover     { transform: scale(1.28); background: rgba(255,255,255,.07); }
+.act-reacted       { background: rgba(201,168,76,.16); }
+.act-reply         { font-size: .75rem; color: rgba(255,255,255,.5); }
+.act-reply:hover   { color: var(--gold); }
 
 @media (max-width:480px) {
   .msgr-panel { width:100vw!important; height:100dvh!important; bottom:0!important; right:0!important; border-radius:0!important; }
@@ -778,7 +801,7 @@ const s: Record<string, React.CSSProperties> = {
     width: 360, height: 560, maxHeight: '80vh',
     background: 'var(--dark2)', border: '1px solid rgba(201,168,76,.18)',
     borderRadius: 18, boxShadow: '0 12px 40px rgba(0,0,0,.45)',
-    display: 'flex', overflow: 'hidden',   // overflow:hidden already here ✓
+    display: 'flex', overflow: 'hidden',
   },
   hidden:        { display: 'none' } as React.CSSProperties,
   sidebar:       { width: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column', height: '100%' },
@@ -805,10 +828,8 @@ const s: Record<string, React.CSSProperties> = {
   backBtn:       { background: 'none', border: 'none', color: 'var(--gold)', cursor: 'pointer', fontSize: '1rem', padding: 0 },
   groupInfo:     { padding: '.7rem 1rem', borderBottom: '1px solid rgba(201,168,76,.1)', background: 'rgba(18,14,9,.5)', flexShrink: 0, overflowY: 'auto' as const, maxHeight: 180 },
   leaveBtn:      { marginTop: '.5rem', padding: '.35rem .8rem', background: 'rgba(224,64,90,.12)', color: '#e0405a', border: '1px solid rgba(224,64,90,.25)', borderRadius: 8, cursor: 'pointer', fontSize: '.72rem', fontWeight: 600 },
-  msgList: { 
-    flex: 1, overflowY: 'auto' as const, overflowX: 'hidden' as const,  // ← add overflowX
-    padding: '.8rem .8rem .4rem', display: 'flex', flexDirection: 'column' as const 
-  },
+  // ← overflowX hidden prevents emoji pills from causing horizontal scroll
+  msgList:       { flex: 1, overflowY: 'auto' as const, overflowX: 'hidden' as const, padding: '.8rem .8rem .4rem', display: 'flex', flexDirection: 'column' as const },
   msgRow:        { display: 'flex', alignItems: 'flex-end', gap: '.4rem' },
   senderLabel:   { fontSize: '.63rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '.1rem' },
   bubble:        { padding: '.45rem .75rem', fontSize: '.82rem', lineHeight: 1.4, wordBreak: 'break-word' as const },
@@ -820,14 +841,7 @@ const s: Record<string, React.CSSProperties> = {
   replyBlockMine:{ background: 'rgba(0,0,0,.15)', borderLeftColor: 'rgba(0,0,0,.3)' },
   replyName:     { display: 'block', fontSize: '.62rem', color: 'var(--gold)', fontWeight: 700 },
   replyText:     { display: 'block', fontSize: '.62rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  pills: { 
-    display: 'flex', 
-    flexWrap: 'wrap' as const, 
-    gap: '.2rem', 
-    padding: '.25rem .2rem .1rem',
-    maxWidth: '100%',
-    overflow: 'hidden',
-  },
+  pills:         { display: 'flex', flexWrap: 'wrap' as const, gap: '.2rem', padding: '.25rem .2rem .1rem', maxWidth: '100%', overflow: 'hidden' },
   pill:          { background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 50, padding: '.12rem .4rem', fontSize: '.78rem', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center' },
   pillMine:      { background: 'rgba(201,168,76,.15)', borderColor: 'rgba(201,168,76,.38)' },
   typingBubble:  { background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.06)', borderRadius: '18px 18px 18px 4px', padding: '.5rem .75rem', display: 'flex', alignItems: 'center', gap: 4, minWidth: 52 },
