@@ -265,17 +265,33 @@ export const messages = {
   openConversation: (userId: string): Promise<{ id: string; created: boolean }> =>
     apiFetch('/conversations/open', { method: 'POST', body: JSON.stringify({ user_id: userId }) }, true) as Promise<{ id: string; created: boolean }>,
 
+  createGroup: (name: string, memberIds: string[]): Promise<{ id: string }> =>
+    apiFetch('/conversations/group', { method: 'POST', body: JSON.stringify({ name, member_ids: memberIds }) }, true) as Promise<{ id: string }>,
+
+  addMember: (conversationId: string, userId: string): Promise<void> =>
+    apiFetch(`/conversations/${conversationId}/members`, { method: 'POST', body: JSON.stringify({ user_id: userId }) }, true) as Promise<void>,
+
+  removeMember: (conversationId: string, userId: string): Promise<void> =>
+    apiFetch(`/conversations/${conversationId}/members/${userId}`, { method: 'DELETE' }, true) as Promise<void>,
+
   unreadCount: (): Promise<{ unread_count: number }> =>
     apiFetch('/conversations/unread', {}, true) as Promise<{ unread_count: number }>,
 
   getMessages: (conversationId: string): Promise<{ messages: Message[] }> =>
     apiFetch(`/conversations/${conversationId}/messages`, {}, true) as Promise<{ messages: Message[] }>,
 
-  send: (conversationId: string, body: string): Promise<Message> =>
-    apiFetch(`/conversations/${conversationId}/messages`, { method: 'POST', body: JSON.stringify({ body }) }, true) as Promise<Message>,
+  send: (conversationId: string, body: string, parentId?: string): Promise<Message> =>
+    apiFetch(
+      `/conversations/${conversationId}/messages`,
+      { method: 'POST', body: JSON.stringify({ body, ...(parentId ? { parent_id: parentId } : {}) }) },
+      true
+    ) as Promise<Message>,
 
   markRead: (conversationId: string): Promise<void> =>
     apiFetch(`/conversations/${conversationId}/read`, { method: 'PATCH' }, true) as Promise<void>,
+
+  toggleReaction: (messageId: string, emoji: string): Promise<{ action: string; emoji: string }> =>
+    apiFetch(`/messages/${messageId}/reactions`, { method: 'POST', body: JSON.stringify({ emoji }) }, true) as Promise<{ action: string; emoji: string }>,
 };
 
 // ── Notifications ──────────────────────────────────────────────────────────

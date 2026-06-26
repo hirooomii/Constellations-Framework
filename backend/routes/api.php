@@ -91,12 +91,16 @@ Route::get('/profiles/{username}/following', [FollowController::class, 'followin
 
 // ── MESSAGES ───────────────────────────────────────────────────────────────────
 Route::middleware('auth.supabase')->group(function () {
-    Route::get('/conversations',                    [MessageController::class, 'index']);
-    Route::post('/conversations/open',              [MessageController::class, 'open']);
-    Route::get('/conversations/unread',             [MessageController::class, 'unreadCount']);
-    Route::get('/conversations/{id}/messages',      [MessageController::class, 'messages']);
-    Route::post('/conversations/{id}/messages',     [MessageController::class, 'send']);
-    Route::patch('/conversations/{id}/read',        [MessageController::class, 'markRead']);
+    Route::get('/conversations',                             [MessageController::class, 'index']);
+    Route::post('/conversations/open',                       [MessageController::class, 'open']);
+    Route::post('/conversations/group',                      [MessageController::class, 'createGroup']);
+    Route::get('/conversations/unread',                      [MessageController::class, 'unreadCount']);
+    Route::get('/conversations/{id}/messages',               [MessageController::class, 'messages']);
+    Route::post('/conversations/{id}/messages',              [MessageController::class, 'send']);
+    Route::patch('/conversations/{id}/read',                 [MessageController::class, 'markRead']);
+    Route::post('/conversations/{id}/members',               [MessageController::class, 'addMember']);
+    Route::delete('/conversations/{id}/members/{userId}',    [MessageController::class, 'removeMember']);
+    Route::post('/messages/{messageId}/reactions',           [MessageController::class, 'toggleReaction']);
 });
 
 // ── NOTIFICATIONS ───────────────────────────────────────────────────────────────

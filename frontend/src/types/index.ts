@@ -51,6 +51,11 @@ export interface Comment {
   replies?: Comment[];
 }
 
+export interface MessageReaction {
+  count: number;
+  mine: boolean;
+}
+
 export interface Message {
   id: string;
   conversation_id: string;
@@ -59,16 +64,30 @@ export interface Message {
   sender_avatar?: string | null;
   body: string;
   created_at: string;
+  parent_id?: string | null;
+  reply_to_name?: string | null;
+  reply_preview?: string | null;
+  reactions?: Record<string, MessageReaction>;
+}
+
+export interface ConversationMember {
+  user_id: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
 }
 
 export interface Conversation {
   id: string;
-  other_user: {
+  type: 'direct' | 'group';
+  name?: string | null;
+  other_user?: {
     id: string;
     username?: string;
     display_name?: string;
     avatar_url?: string;
-  };
+  } | null;
+  members?: ConversationMember[];
   last_message?: Message | null;
   unread_count: number;
 }

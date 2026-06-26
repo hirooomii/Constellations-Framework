@@ -30,6 +30,53 @@ class MessageController extends Controller
         return response()->json($conversation);
     }
 
+    public function createGroup(Request $request): JsonResponse
+    {
+        $user = $request->supabaseUser;
+        $data = $request->validate([
+            'name'       => 'required|string|max:80',
+            'member_ids' => 'required|array|min:1',
+            'member_ids.*' => 'string',
+        ]);
+
+        $memberIds = array_filter($data['member_ids'], fn($id) => $id !== $user['id']);
+
+        $result = $this->supabase->createGroupConversation($data['name'], $user['id'], array_values($memberIds));
+        return response()->json($result, 201);
+    }
+
+    public function addMember(Request $request, string $id): JsonResponse
+    {
+        $user = $request->supabaseUser;
+        $data = $request->validate(['user_id' => 'required|string']);
+
+        $participating = $this->supabase->getUserConversationIds($user['id']);
+        if (!in_array($id, $participating)) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $this->supabase->addConversationMember($id, $data['user_id']);
+        return response()->json(['message' => 'Member added']);
+    }
+
+    public function removeMember(Request $request, string $id, string $userId): JsonResponse
+    {
+        $user = $request->supabaseUser;
+
+        $participating = $this->supabase->getUserConversationIds($user['id']);
+        if (!in_array($id, $participating)) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Only allow removing yourself, or group creator can remove others (simplified: allow self-remove always)
+        if ($userId !== $user['id']) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $this->supabase->removeConversationMember($id, $userId);
+        return response()->json(['message' => 'Removed from group']);
+    }
+
     public function messages(Request $request, string $id): JsonResponse
     {
         $user = $request->supabaseUser;
@@ -38,15 +85,27 @@ class MessageController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $messages = $this->supabase->getMessages($id);
-        return response()->json(['messages' => $messages]);
+        $msgs = $this->supabase->getMessages($id, $user['id']);
+        return response()->json(['messages' => $msgs]);
     }
 
     public function send(Request $request, string $id): JsonResponse
     {
         $user    = $request->supabaseUser;
-        $data    = $request->validate(['body' => 'required|string|max:1000']);
+        $data    = $request->validate([
+            'body'      => 'required|string|max:1000',
+            'parent_id' => 'nullable|string',
+        ]);
         $profile = $this->supabase->getProfile($user['id']);
+
+        $replyToName    = null;
+        $replyPreview   = null;
+
+        if (!empty($data['parent_id'])) {
+            $parent       = $this->supabase->getMessageById($data['parent_id']);
+            $replyToName  = $parent['sender_name'] ?? null;
+            $replyPreview = $parent ? mb_substr($parent['body'], 0, 100) : null;
+        }
 
         $message = $this->supabase->insertMessage([
             'conversation_id' => $id,
@@ -54,11 +113,23 @@ class MessageController extends Controller
             'sender_name'     => $profile['display_name'] ?? $profile['username'] ?? $user['email'],
             'sender_avatar'   => $profile['avatar_url'] ?? null,
             'body'            => $data['body'],
+            'parent_id'       => $data['parent_id'] ?? null,
+            'reply_to_name'   => $replyToName,
+            'reply_preview'   => $replyPreview,
         ]);
 
         $this->supabase->markConversationRead($id, $user['id']);
 
         return response()->json($message, 201);
+    }
+
+    public function toggleReaction(Request $request, string $messageId): JsonResponse
+    {
+        $user = $request->supabaseUser;
+        $data = $request->validate(['emoji' => 'required|string|max:10']);
+
+        $result = $this->supabase->toggleMessageReaction($messageId, $user['id'], $data['emoji']);
+        return response()->json($result);
     }
 
     public function markRead(Request $request, string $id): JsonResponse

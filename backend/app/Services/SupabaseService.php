@@ -513,25 +513,67 @@ class SupabaseService
         $participations = $res->successful() ? $res->json() : [];
         if (empty($participations)) return [];
 
-        $lastReadMap = array_column($participations, 'last_read_at', 'conversation_id');
+        $lastReadMap   = array_column($participations, 'last_read_at', 'conversation_id');
         $conversations = [];
 
         foreach ($participations as $p) {
             $convId = $p['conversation_id'];
 
-            $otherRes = $this->http()->get("{$this->url}/rest/v1/conversation_participants", [
-                'conversation_id' => "eq.{$convId}",
-                'user_id'         => "neq.{$userId}",
-                'select'          => 'user_id',
-                'limit'           => 1,
+            // Fetch conversation metadata (type, name)
+            $convMeta = $this->http()->get("{$this->url}/rest/v1/conversations", [
+                'id'     => "eq.{$convId}",
+                'select' => 'id,type,name',
+                'limit'  => 1,
             ]);
-            $others = $otherRes->successful() ? $otherRes->json() : [];
-            if (empty($others)) continue;
+            $meta     = ($convMeta->successful() && !empty($convMeta->json())) ? $convMeta->json()[0] : null;
+            $convType = $meta['type'] ?? 'direct';
 
-            $otherUserId  = $others[0]['user_id'];
-            $otherProfile = $this->getProfile($otherUserId);
+            $convObj = [
+                'id'   => $convId,
+                'type' => $convType,
+                'name' => $meta['name'] ?? null,
+            ];
 
-            $msgRes = $this->http()->get("{$this->url}/rest/v1/messages", [
+            if ($convType === 'group') {
+                $membersRes = $this->http()->get("{$this->url}/rest/v1/conversation_participants", [
+                    'conversation_id' => "eq.{$convId}",
+                    'select'          => 'user_id',
+                ]);
+                $memberIds = $membersRes->successful() ? array_column($membersRes->json(), 'user_id') : [];
+                $members   = [];
+                foreach ($memberIds as $mid) {
+                    $profile   = $this->getProfile($mid);
+                    $members[] = [
+                        'user_id'      => $mid,
+                        'username'     => $profile['username']     ?? null,
+                        'display_name' => $profile['display_name'] ?? null,
+                        'avatar_url'   => $profile['avatar_url']   ?? null,
+                    ];
+                }
+                $convObj['members']    = $members;
+                $convObj['other_user'] = null;
+            } else {
+                $otherRes = $this->http()->get("{$this->url}/rest/v1/conversation_participants", [
+                    'conversation_id' => "eq.{$convId}",
+                    'user_id'         => "neq.{$userId}",
+                    'select'          => 'user_id',
+                    'limit'           => 1,
+                ]);
+                $others = $otherRes->successful() ? $otherRes->json() : [];
+                if (empty($others)) continue;
+
+                $otherUserId      = $others[0]['user_id'];
+                $otherProfile     = $this->getProfile($otherUserId);
+                $convObj['other_user'] = [
+                    'id'           => $otherUserId,
+                    'username'     => $otherProfile['username']     ?? null,
+                    'display_name' => $otherProfile['display_name'] ?? null,
+                    'avatar_url'   => $otherProfile['avatar_url']   ?? null,
+                ];
+                $convObj['members'] = null;
+            }
+
+            $msgRes  = $this->http()->get("{$this->url}/rest/v1/messages", [
                 'conversation_id' => "eq.{$convId}",
                 'select'          => '*',
                 'order'           => 'created_at.desc',
@@ -546,19 +588,10 @@ class SupabaseService
                 'created_at'      => "gt.{$lastRead}",
                 'select'          => 'id',
             ]);
-            $unreadCount = $unreadRes->successful() ? count($unreadRes->json()) : 0;
 
-            $conversations[] = [
-                'id'           => $convId,
-                'other_user'   => [
-                    'id'           => $otherUserId,
-                    'username'     => $otherProfile['username'] ?? null,
-                    'display_name' => $otherProfile['display_name'] ?? null,
-                    'avatar_url'   => $otherProfile['avatar_url'] ?? null,
-                ],
-                'last_message' => $lastMsg,
-                'unread_count' => $unreadCount,
-            ];
+            $convObj['last_message'] = $lastMsg;
+            $convObj['unread_count'] = $unreadRes->successful() ? count($unreadRes->json()) : 0;
+            $conversations[]         = $convObj;
         }
 
         usort($conversations, function ($a, $b) {
@@ -575,6 +608,15 @@ class SupabaseService
         $myConvIds = $this->getUserConversationIds($userId);
 
         foreach ($myConvIds as $convId) {
+            // Only match direct conversations
+            $directCheck = $this->http()->get("{$this->url}/rest/v1/conversations", [
+                'id'     => "eq.{$convId}",
+                'type'   => 'eq.direct',
+                'select' => 'id',
+                'limit'  => 1,
+            ]);
+            if (empty($directCheck->json())) continue;
+
             $check = $this->http()->get("{$this->url}/rest/v1/conversation_participants", [
                 'conversation_id' => "eq.{$convId}",
                 'user_id'         => "eq.{$otherUserId}",
@@ -587,7 +629,7 @@ class SupabaseService
         }
 
         $convRes = $this->httpWith(['Prefer' => 'return=representation'])
-            ->post("{$this->url}/rest/v1/conversations", new \stdClass());
+            ->post("{$this->url}/rest/v1/conversations", ['type' => 'direct']);
         if (!$convRes->successful()) throw new \RuntimeException($convRes->body());
         $conv   = $convRes->json();
         $convId = is_array($conv) && isset($conv[0]) ? $conv[0]['id'] : $conv['id'];
@@ -602,7 +644,44 @@ class SupabaseService
         return ['id' => $convId, 'created' => true];
     }
 
-    public function getMessages(string $conversationId): array
+    public function createGroupConversation(string $name, string $createdBy, array $memberIds): array
+    {
+        $convRes = $this->httpWith(['Prefer' => 'return=representation'])
+            ->post("{$this->url}/rest/v1/conversations", [
+                'type'       => 'group',
+                'name'       => $name,
+                'created_by' => $createdBy,
+            ]);
+        if (!$convRes->successful()) throw new \RuntimeException($convRes->body());
+        $conv   = $convRes->json();
+        $convId = is_array($conv) && isset($conv[0]) ? $conv[0]['id'] : $conv['id'];
+
+        $all = array_unique(array_merge([$createdBy], $memberIds));
+        foreach ($all as $mid) {
+            $this->http()->post("{$this->url}/rest/v1/conversation_participants", [
+                'conversation_id' => $convId, 'user_id' => $mid,
+            ]);
+        }
+
+        return ['id' => $convId];
+    }
+
+    public function addConversationMember(string $convId, string $userId): void
+    {
+        $this->httpWith(['Prefer' => 'return=minimal'])
+            ->post("{$this->url}/rest/v1/conversation_participants", [
+                'conversation_id' => $convId, 'user_id' => $userId,
+            ]);
+    }
+
+    public function removeConversationMember(string $convId, string $userId): void
+    {
+        $this->http()->delete(
+            "{$this->url}/rest/v1/conversation_participants?conversation_id=eq.{$convId}&user_id=eq.{$userId}"
+        );
+    }
+
+    public function getMessages(string $conversationId, string $currentUserId = ''): array
     {
         $res = $this->http()->get("{$this->url}/rest/v1/messages", [
             'conversation_id' => "eq.{$conversationId}",
@@ -610,7 +689,67 @@ class SupabaseService
             'order'           => 'created_at.asc',
             'limit'           => 100,
         ]);
-        return $res->successful() ? $res->json() : [];
+        $msgs = $res->successful() ? $res->json() : [];
+        if (empty($msgs)) return [];
+
+        // Fetch all reactions for these messages in one call
+        $msgIds   = implode(',', array_column($msgs, 'id'));
+        $reactRes = $this->http()->get("{$this->url}/rest/v1/message_reactions", [
+            'message_id' => "in.({$msgIds})",
+            'select'     => 'message_id,user_id,emoji',
+        ]);
+        $allReactions    = $reactRes->successful() ? $reactRes->json() : [];
+        $reactionsByMsg  = [];
+        foreach ($allReactions as $r) {
+            $mid   = $r['message_id'];
+            $emoji = $r['emoji'];
+            if (!isset($reactionsByMsg[$mid][$emoji])) {
+                $reactionsByMsg[$mid][$emoji] = ['count' => 0, 'mine' => false];
+            }
+            $reactionsByMsg[$mid][$emoji]['count']++;
+            if ($currentUserId && $r['user_id'] === $currentUserId) {
+                $reactionsByMsg[$mid][$emoji]['mine'] = true;
+            }
+        }
+
+        return array_map(function ($msg) use ($reactionsByMsg) {
+            $msg['reactions'] = $reactionsByMsg[$msg['id']] ?? [];
+            return $msg;
+        }, $msgs);
+    }
+
+    public function getMessageById(string $messageId): ?array
+    {
+        $res = $this->http()->get("{$this->url}/rest/v1/messages", [
+            'id'     => "eq.{$messageId}",
+            'select' => 'id,sender_name,body',
+            'limit'  => 1,
+        ]);
+        $data = $res->json();
+        return (!empty($data) && is_array($data)) ? $data[0] : null;
+    }
+
+    public function toggleMessageReaction(string $messageId, string $userId, string $emoji): array
+    {
+        $res = $this->http()->get("{$this->url}/rest/v1/message_reactions", [
+            'message_id' => "eq.{$messageId}",
+            'user_id'    => "eq.{$userId}",
+            'emoji'      => "eq.{$emoji}",
+            'select'     => 'id',
+        ]);
+        if (!empty($res->json())) {
+            $this->http()->delete(
+                "{$this->url}/rest/v1/message_reactions?message_id=eq.{$messageId}&user_id=eq.{$userId}&emoji=eq.{$emoji}"
+            );
+            return ['action' => 'removed', 'emoji' => $emoji];
+        }
+        $this->httpWith(['Prefer' => 'return=minimal'])
+            ->post("{$this->url}/rest/v1/message_reactions", [
+                'message_id' => $messageId,
+                'user_id'    => $userId,
+                'emoji'      => $emoji,
+            ]);
+        return ['action' => 'added', 'emoji' => $emoji];
     }
 
     public function insertMessage(array $data): array
