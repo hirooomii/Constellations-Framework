@@ -3,6 +3,31 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, Comment, User } from '@/types';
 import { reactions as reactionsApi, comments as commentsApi, cards as cardsApi, REACTION_TYPES, ReactionType, profiles } from '@/lib/api';
 
+// ── Canvas helpers ────────────────────────────────────────────────────────────
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    setTimeout(reject, 6000);
+    img.src = src;
+  });
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let cur = '';
+  for (const word of words) {
+    const test = cur ? cur + ' ' + word : word;
+    if (ctx.measureText(test).width > maxWidth && cur) { lines.push(cur); cur = word; }
+    else cur = test;
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [''];
+}
+
 interface ViewModalProps {
   card: Card | null;
   onClose: () => void;
@@ -36,6 +61,7 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
   const [togglingComments, setTogglingComments] = useState(false);
   const [activeReactionPicker, setActiveReactionPicker] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ReplyTarget | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const isAdmin           = user?.role === 'admin';
   const isOwner           = !!user && card?.author_id === user.id;
@@ -198,6 +224,152 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
     finally { setTogglingComments(false); }
   }
 
+  async function handleDownload() {
+    if (!card || downloading) return;
+    setDownloading(true);
+    try {
+      await document.fonts.ready;
+      const W = 1080, H = 1350;
+      const GOLD = '#c9a84c', DARK = '#0c0b09', TEXT = '#e8e4d6';
+      const IMG_H = 480, PX = 80;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      const ctx = canvas.getContext('2d')!;
+
+      // Dark base
+      ctx.fillStyle = DARK;
+      ctx.fillRect(0, 0, W, H);
+
+      // Hero image
+      let imgOk = false;
+      if (card.image_url) {
+        try {
+          const src = card.image_url.includes('lh3.googleusercontent.com')
+            ? card.image_url : card.image_url;
+          const img = await loadImage(src);
+          const scale = Math.max(W / img.width, IMG_H / img.height);
+          const sw = img.width * scale, sh = img.height * scale;
+          ctx.drawImage(img, (W - sw) / 2, 0, sw, sh);
+          imgOk = true;
+        } catch { /* fallback */ }
+      }
+      if (!imgOk) {
+        const g = ctx.createLinearGradient(0, 0, W, IMG_H);
+        g.addColorStop(0, '#1e1a12'); g.addColorStop(1, DARK);
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, IMG_H);
+      }
+
+      // Overlay fade
+      const ov = ctx.createLinearGradient(0, IMG_H * 0.25, 0, IMG_H + 10);
+      ov.addColorStop(0, 'rgba(12,11,9,0)'); ov.addColorStop(1, 'rgba(12,11,9,1)');
+      ctx.fillStyle = ov; ctx.fillRect(0, 0, W, IMG_H + 10);
+
+      // Stars (deterministic)
+      let seed = card.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+      const rng = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+      const stars: {x:number;y:number}[] = [];
+      for (let i = 0; i < 160; i++) {
+        const x = rng() * W, y = rng() * H;
+        const r = rng() * 1.6 + 0.2, a = rng() * 0.55 + 0.15;
+        stars.push({x, y});
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(232,228,214,${a})`; ctx.fill();
+        // Twinkle glow on brighter stars
+        if (a > 0.55) {
+          ctx.beginPath(); ctx.arc(x, y, r * 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(232,228,214,0.06)`; ctx.fill();
+        }
+      }
+
+      // Constellation lines
+      ctx.lineWidth = 0.8;
+      for (let i = 0; i < 18; i++) {
+        const s1 = stars[Math.floor(rng() * stars.length)];
+        const s2 = stars[Math.floor(rng() * stars.length)];
+        const d = Math.hypot(s2.x - s1.x, s2.y - s1.y);
+        if (d > 50 && d < 220) {
+          ctx.beginPath(); ctx.moveTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y);
+          ctx.strokeStyle = `rgba(201,168,76,0.18)`; ctx.stroke();
+        }
+      }
+
+      // Gold left accent bar
+      ctx.fillStyle = GOLD; ctx.fillRect(0, IMG_H + 30, 3, H - IMG_H - 110);
+
+      let y = IMG_H + 55;
+
+      // Date
+      if (card.display_date) {
+        ctx.font = `400 22px 'DM Sans', Arial, sans-serif`;
+        ctx.fillStyle = GOLD; ctx.fillText(card.display_date.toUpperCase(), PX, y);
+        y += 46;
+      }
+
+      // Title
+      ctx.font = `bold 62px 'Playfair Display', Georgia, serif`;
+      ctx.fillStyle = TEXT;
+      const titleLines = wrapText(ctx, card.title, W - PX * 2);
+      for (const line of titleLines.slice(0, 3)) { ctx.fillText(line, PX, y); y += 74; }
+      y += 8;
+
+      // Author
+      ctx.font = `500 26px 'DM Sans', Arial, sans-serif`;
+      ctx.fillStyle = GOLD;
+      const authorStr = (card.author_display_name || '') +
+        (card.author_username ? '   @' + card.author_username : '');
+      ctx.fillText(authorStr, PX, y); y += 56;
+
+      // ✦ Poem ✦ divider
+      ctx.strokeStyle = `rgba(201,168,76,0.28)`; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PX, y); ctx.lineTo(PX + 100, y); ctx.stroke();
+      ctx.font = `400 20px 'DM Sans', Arial, sans-serif`;
+      ctx.fillStyle = GOLD; ctx.fillText('✦  Poem  ✦', PX + 112, y + 6);
+      ctx.beginPath(); ctx.moveTo(PX + 258, y); ctx.lineTo(W - PX, y); ctx.stroke();
+      y += 44;
+
+      // Poem text
+      ctx.font = `italic 30px 'Playfair Display', Georgia, serif`;
+      ctx.fillStyle = TEXT;
+      const maxPoemBottom = H - 130;
+      const poemStartY = y;
+      const poemLines = card.poem.split('\n');
+      for (const rawLine of poemLines) {
+        const chunks = wrapText(ctx, rawLine.trim() || ' ', W - PX * 2 - 28);
+        for (const chunk of chunks) {
+          if (y > maxPoemBottom) { ctx.fillText('…', PX + 28, y); y += 40; break; }
+          ctx.fillText(chunk, PX + 28, y); y += 42;
+        }
+        if (y > maxPoemBottom) break;
+      }
+
+      // Poem left border
+      ctx.strokeStyle = 'rgba(201,168,76,0.22)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(PX + 8, poemStartY - 18); ctx.lineTo(PX + 8, y - 10); ctx.stroke();
+
+      // Footer gradient
+      const fg = ctx.createLinearGradient(0, H - 130, 0, H);
+      fg.addColorStop(0, 'rgba(12,11,9,0)'); fg.addColorStop(1, 'rgba(12,11,9,0.97)');
+      ctx.fillStyle = fg; ctx.fillRect(0, H - 130, W, 130);
+
+      // ✦ Celestia branding
+      ctx.font = `600 28px 'DM Sans', Arial, sans-serif`;
+      ctx.fillStyle = GOLD; ctx.fillText('✦  Celestia', PX, H - 38);
+
+      // Download
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(card.title || 'verse').replace(/\s+/g, '-').toLowerCase()}-celestia.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    } catch { toast('Download failed'); }
+    finally { setDownloading(false); }
+  }
+
   function getImageSrc(url?: string | null): string {
     if (!url) return 'https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif';
     if (url.includes('lh3.googleusercontent.com')) {
@@ -231,12 +403,15 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
           <img src={getImageSrc(card.image_url)} alt={card.title} style={s.heroImg} />
           <div style={s.heroOverlay} />
           <button style={s.closeBtn} onClick={onClose}>✕</button>
-          {canEdit && (
-            <div style={s.adminBtns}>
+          <div style={s.adminBtns}>
+            {canEdit && <>
               <button style={s.editBtn} onClick={() => { onClose(); onEdit(card); }}>✎ Edit</button>
               <button style={s.delBtn} onClick={() => { onClose(); onDelete(card); }}>🗑</button>
-            </div>
-          )}
+            </>}
+            <button type="button" style={s.downloadBtn} onClick={handleDownload} title="Download as PNG" disabled={downloading}>
+              {downloading ? '…' : '⬇'}
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -426,6 +601,7 @@ const s: Record<string, React.CSSProperties> = {
   adminBtns: { position: 'absolute', top: '.8rem', right: '.8rem', display: 'flex', gap: '.4rem', zIndex: 5 },
   editBtn: { padding: '.3rem .75rem', borderRadius: '50px', border: '1px solid rgba(201,168,76,.35)', background: 'rgba(201,168,76,.15)', color: 'var(--gold)', cursor: 'pointer', fontSize: '.75rem', fontFamily: "'DM Sans', sans-serif" },
   delBtn: { width: '34px', height: '34px', borderRadius: '50%', border: '1px solid rgba(200,50,50,.3)', background: 'rgba(200,50,50,.15)', color: '#e07070', cursor: 'pointer', fontSize: '.9rem' },
+  downloadBtn: { width: '34px', height: '34px', borderRadius: '50%', border: '1px solid rgba(201,168,76,.35)', background: 'rgba(201,168,76,.12)', color: 'var(--gold)', cursor: 'pointer', fontSize: '.85rem', backdropFilter: 'blur(6px)' },
   body: { padding: '1.4rem 1.8rem 1.8rem', overflowY: 'auto', flex: 1 },
   date: { fontSize: '.68rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '.4rem' },
   title: { fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', lineHeight: 1.15, marginBottom: '.6rem' },
