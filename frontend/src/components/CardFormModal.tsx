@@ -53,6 +53,7 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
   const [publishMode, setPublishMode] = useState<PublishMode>('now');
   const [schedDate, setSchedDate] = useState('');
   const [schedTime, setSchedTime] = useState('');
+  const [schedDisplayDate, setSchedDisplayDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState('');
@@ -73,6 +74,7 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
       setDisplayDate(new Date().toISOString().split('T')[0]);
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       setSchedDate(tomorrow.toISOString().split('T')[0]);
+      setSchedDisplayDate(tomorrow.toISOString().split('T')[0]);
       const now = new Date();
       setSchedTime(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`);
       setPublishMode('now');
@@ -122,7 +124,7 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
           poem: poem.trim(),
           description: desc.trim() || 'A verse without bounds',
           image_url: imgUrl.trim() || undefined,
-          display_date: displayDate ? formatDisplayDate(displayDate) : editCard.display_date ?? undefined,
+          display_date: displayDate || editCard.display_date ?? undefined,
         });
         toast('Verse updated ✦');
       } else {
@@ -137,7 +139,7 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
             poem: poem.trim(),
             description: desc.trim() || 'A verse without bounds',
             image_url: imgUrl.trim() || 'https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif',
-            display_date: formatDisplayDate(schedDate),
+            display_date: schedDisplayDate || schedDate,
             scheduled_at: scheduledAt.toISOString(),
           });
           toast(`"${title.trim()}" scheduled ⏰`);
@@ -147,7 +149,7 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
             poem: poem.trim(),
             description: desc.trim() || 'A verse without bounds',
             image_url: imgUrl.trim() || 'https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif',
-            display_date: displayDate ? formatDisplayDate(displayDate) : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+            display_date: displayDate || new Date().toISOString().split('T')[0],
             scheduled_at: null,
           });
           toast('Verse published ✦');
@@ -232,7 +234,7 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
 
               {publishMode === 'schedule' && (
                 <div style={s.schedBox}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.65rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.65rem', marginBottom: '.65rem' }}>
                     <Field label="Publish Date">
                       <input style={s.input} type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} />
                     </Field>
@@ -240,7 +242,10 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
                       <input style={s.input} type="time" value={schedTime} onChange={e => setSchedTime(e.target.value)} />
                     </Field>
                   </div>
-                  <p style={s.schedNote}>ℹ️ The card's display date will automatically match the scheduled date.</p>
+                  <Field label="Card Display Date">
+                    <input style={s.input} type="date" title="Date shown on the card" value={schedDisplayDate} onChange={e => setSchedDisplayDate(e.target.value)} />
+                  </Field>
+                  <p style={s.schedNote}>ℹ️ Publish date/time = when it goes live. Card display date = the date shown on the verse (can be different, e.g. schedule for 11:59 PM Jun 29 but show Jun 30 on the card).</p>
                 </div>
               )}
 

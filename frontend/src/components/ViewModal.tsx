@@ -3,6 +3,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, Comment, User } from '@/types';
 import { reactions as reactionsApi, comments as commentsApi, cards as cardsApi, REACTION_TYPES, ReactionType, profiles } from '@/lib/api';
 
+function formatCardDate(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  if (/[a-zA-Z]/.test(dateStr)) return dateStr; // legacy human-readable format
+  try {
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch { return dateStr; }
+}
+
 // ── Canvas helpers ────────────────────────────────────────────────────────────
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -350,7 +358,7 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
       if (card.display_date) {
         ctx.font = `400 22px 'DM Sans', Arial, sans-serif`;
         ctx.fillStyle = GOLD;
-        ctx.fillText(card.display_date.toUpperCase(), PX, y);
+        ctx.fillText(formatCardDate(card.display_date).toUpperCase(), PX, y);
         y += 58;
       }
       y += 28; // extra margin before title
@@ -483,7 +491,7 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
 
         {/* Body */}
         <div style={s.body}>
-          <div style={s.date}>{card.display_date}</div>
+          <div style={s.date}>{formatCardDate(card.display_date)}</div>
           <h2 style={s.title}>{card.title}</h2>
 
           {/* Author */}

@@ -2,6 +2,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Card } from '@/types';
 
+function formatCardDate(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  if (/[a-zA-Z]/.test(dateStr)) return dateStr;
+  try {
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch { return dateStr; }
+}
+
 const REACTION_EMOJIS: Record<string, string> = {
   touched:   '🌸',
   magical:   '💫',
@@ -328,7 +336,7 @@ export default function CardGrid({ cards, isAdmin, currentUserId, feedMode, onCa
 
               {/* Content */}
               <div style={s.content}>
-                <div style={s.cardDate}>{card.display_date || ''}</div>
+                <div style={s.cardDate}>{formatCardDate(card.display_date)}</div>
                 <div style={s.cardTitle}>{card.title}</div>
 
                 {card.author_display_name && (

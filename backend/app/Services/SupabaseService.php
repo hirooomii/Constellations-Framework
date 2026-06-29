@@ -263,7 +263,7 @@ class SupabaseService
         $now = now()->toIso8601String();
         $res = $this->http()->get("{$this->url}/rest/v1/cards", [
             'select' => '*',
-            'order'  => 'created_at.desc',
+            'order'  => 'display_date.desc,created_at.desc',
             'or'     => "(scheduled_at.is.null,scheduled_at.lte.{$now})",
         ]);
         $cards = $res->successful() ? $res->json() : [];
@@ -281,7 +281,7 @@ class SupabaseService
 
         $res = $this->http()->get("{$this->url}/rest/v1/cards", [
             'select'    => '*',
-            'order'     => 'created_at.desc',
+            'order'     => 'display_date.desc,created_at.desc',
             'author_id' => "in.({$idList})",
             'or'        => "(scheduled_at.is.null,scheduled_at.lte.{$now})",
         ]);
