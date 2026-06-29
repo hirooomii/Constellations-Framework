@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Services\SupabaseService;
+use App\Services\PushService;
 
 class FollowController extends Controller
 {
-    public function __construct(private SupabaseService $supabase) {}
+    public function __construct(
+        private SupabaseService $supabase,
+        private PushService     $push,
+    ) {}
 
     public function toggle(Request $request, string $username): JsonResponse
     {
@@ -36,6 +40,19 @@ class FollowController extends Controller
             ]);
         } else {
             $this->supabase->followUser($followerId, $followingId);
+
+            try {
+                $followerProfile = $this->supabase->getProfile($followerId);
+                $followerName    = $followerProfile['display_name'] ?? $followerProfile['username'] ?? 'Someone';
+                $this->push->sendToUser(
+                    $followingId,
+                    "{$followerName} 👥",
+                    'Started following you',
+                    "/?profile={$username}",
+                    'follow-' . $followerId
+                );
+            } catch (\Throwable) {}
+
             return response()->json([
                 'action'    => 'followed',
                 'username'  => $username,

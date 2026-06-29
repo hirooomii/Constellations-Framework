@@ -56,23 +56,36 @@ class CommentController extends Controller
             'reply_to'   => $data['reply_to'] ?? null,
         ]);
 
-        // ── Push notification to parent comment author ─────────────────────────
+        $commenterName = $profile['display_name'] ?? $profile['username'] ?? 'Someone';
+        $preview       = mb_substr($data['body'], 0, 100);
+
+        // ── Push: reply → notify parent comment author ─────────────────────────
         if (!empty($data['parent_id'])) {
             try {
                 $parent = $this->supabase->getCommentById($data['parent_id']);
                 if ($parent && $parent['user_id'] !== $user['id']) {
-                    $replierName = $profile['display_name'] ?? $profile['username'] ?? 'Someone';
                     $this->push->sendToUser(
                         $parent['user_id'],
-                        "{$replierName} replied to your comment",
-                        mb_substr($data['body'], 0, 120),
+                        "{$commenterName} 💬",
+                        "Replied to your comment: {$preview}",
                         '/',
                         'reply-' . $data['parent_id']
                     );
                 }
-            } catch (\Throwable) {
-                // Silent
-            }
+            } catch (\Throwable) {}
+        }
+
+        // ── Push: top-level comment → notify card owner ────────────────────────
+        if (empty($data['parent_id']) && ($card['user_id'] ?? null) && $card['user_id'] !== $user['id']) {
+            try {
+                $this->push->sendToUser(
+                    $card['user_id'],
+                    "{$commenterName} 📝",
+                    "Commented on your verses: {$preview}",
+                    '/',
+                    'comment-' . $id
+                );
+            } catch (\Throwable) {}
         }
 
         return response()->json($comment, 201);

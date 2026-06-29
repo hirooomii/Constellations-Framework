@@ -124,14 +124,21 @@ class MessageController extends Controller
 
         // ── Push notification to other participants ───────────────────────────
         try {
-            $conv        = $this->supabase->getConversationMeta($id);
-            $convType    = $conv['type']  ?? 'direct';
-            $convName    = $conv['name']  ?? null;
-            $senderName  = $profile['display_name'] ?? $profile['username'] ?? 'Someone';
-            $notifTitle  = $convType === 'group' ? ($convName ?? 'Group Chat') : $senderName;
-            $notifBody   = mb_substr($data['body'], 0, 120);
-            $participants = $this->supabase->getConversationParticipants($id);
+            $conv       = $this->supabase->getConversationMeta($id);
+            $convType   = $conv['type'] ?? 'direct';
+            $convName   = $conv['name'] ?? null;
+            $senderName = $profile['display_name'] ?? $profile['username'] ?? 'Someone';
+            $preview    = mb_substr($data['body'], 0, 80);
 
+            if ($convType === 'group') {
+                $notifTitle = ($convName ?? 'Group Chat') . ' 💬';
+                $notifBody  = "{$senderName}: {$preview}";
+            } else {
+                $notifTitle = "{$senderName} 💬";
+                $notifBody  = "Sent you a message: {$preview}";
+            }
+
+            $participants = $this->supabase->getConversationParticipants($id);
             foreach ($participants as $pid) {
                 if ($pid === $user['id']) continue;
                 $this->push->sendToUser($pid, $notifTitle, $notifBody, '/?messages=open', 'msg-' . $id);
