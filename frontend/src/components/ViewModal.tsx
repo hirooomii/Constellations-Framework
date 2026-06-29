@@ -231,7 +231,7 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
       await document.fonts.ready;
       const W = 1080;
       const GOLD = '#c9a84c', DARK = '#0c0b09', TEXT = '#e8e4d6';
-      const PX = 90, BORDER = 5;
+      const PX = 90;
 
       // ── Pre-measure to get dynamic height ───────────────────────────────────
       const tmp = document.createElement('canvas').getContext('2d')!;
@@ -243,13 +243,12 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
         poemLineCount += wrapText(tmp, l.trim() || ' ', W - PX * 2).length;
 
       const H = Math.max(1350,
-        120              // top brand
-        + (card.display_date ? 56 : 0)
-        + titleLineCount * 80 + 20
-        + 68             // author
-        + 62             // divider
-        + poemLineCount * 48 + 30
-        + 120            // footer
+        175
+        + (card.display_date ? 70 : 0)
+        + 40
+        + titleLineCount * 80 + 60
+        + 110
+        + poemLineCount * 48 + 100
       );
 
       // ── Canvas ───────────────────────────────────────────────────────────────
@@ -275,10 +274,10 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
 
       // 3. Dark scrim so text stays readable
       const scrim = ctx.createLinearGradient(0, 0, 0, H);
-      scrim.addColorStop(0,   'rgba(12,11,9,0.82)');
-      scrim.addColorStop(0.35,'rgba(12,11,9,0.60)');
-      scrim.addColorStop(0.65,'rgba(12,11,9,0.68)');
-      scrim.addColorStop(1,   'rgba(12,11,9,0.90)');
+      scrim.addColorStop(0,   'rgba(12,11,9,0.85)');
+      scrim.addColorStop(0.35,'rgba(12,11,9,0.62)');
+      scrim.addColorStop(0.65,'rgba(12,11,9,0.70)');
+      scrim.addColorStop(1,   'rgba(12,11,9,0.92)');
       ctx.fillStyle = scrim; ctx.fillRect(0, 0, W, H);
 
       // 4. Stars + constellation
@@ -307,67 +306,112 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
         }
       }
 
-      // 5. Art Deco gold border — outer + inner rect with concave corner arcs
-      const OUT = 8, INN = 30, GAP = INN - OUT;
+      // 5. Enhanced Art Deco gold border — three layers + corner arcs + diamond ornaments
+      const OUT = 7, MID = 22, INN = 38, GAPM = MID - OUT;
+      const drawDiamond = (cx: number, cy: number, sz: number) => {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - sz); ctx.lineTo(cx + sz, cy);
+        ctx.lineTo(cx, cy + sz); ctx.lineTo(cx - sz, cy);
+        ctx.closePath(); ctx.fill();
+      };
       ctx.strokeStyle = GOLD;
-      // Outer rectangle
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.strokeRect(OUT, OUT, W - OUT * 2, H - OUT * 2);
-      // Inner rectangle
       ctx.lineWidth = 1.5;
+      ctx.strokeRect(MID, MID, W - MID * 2, H - MID * 2);
+      ctx.globalAlpha = 0.3;
+      ctx.lineWidth = 0.8;
       ctx.strokeRect(INN, INN, W - INN * 2, H - INN * 2);
-      // Quarter-circle arcs at each corner (concave, fills the gap between rects)
+      ctx.globalAlpha = 1;
       ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(INN,     INN,     GAP, Math.PI,       Math.PI * 1.5); ctx.stroke();
-      ctx.beginPath(); ctx.arc(W - INN, INN,     GAP, Math.PI * 1.5, Math.PI * 2  ); ctx.stroke();
-      ctx.beginPath(); ctx.arc(W - INN, H - INN, GAP, 0,             Math.PI * 0.5); ctx.stroke();
-      ctx.beginPath(); ctx.arc(INN,     H - INN, GAP, Math.PI * 0.5, Math.PI      ); ctx.stroke();
+      ctx.beginPath(); ctx.arc(MID,     MID,     GAPM, Math.PI,       Math.PI * 1.5); ctx.stroke();
+      ctx.beginPath(); ctx.arc(W - MID, MID,     GAPM, Math.PI * 1.5, Math.PI * 2  ); ctx.stroke();
+      ctx.beginPath(); ctx.arc(W - MID, H - MID, GAPM, 0,             Math.PI * 0.5); ctx.stroke();
+      ctx.beginPath(); ctx.arc(MID,     H - MID, GAPM, Math.PI * 0.5, Math.PI      ); ctx.stroke();
+      ctx.fillStyle = GOLD;
+      drawDiamond(W / 2,    MID,     6);
+      drawDiamond(W / 2,    H - MID, 6);
+      drawDiamond(MID,      H / 2,   6);
+      drawDiamond(W - MID,  H / 2,   6);
 
-      // 6. Top inner line + brand
-      let y = 52;
-      ctx.font = `500 23px 'DM Sans', Arial, sans-serif`;
-      ctx.fillStyle = `rgba(201,168,76,0.7)`;
-      const brand = '✦  C E L E S T I A  ✦';
-      ctx.fillText(brand, (W - ctx.measureText(brand).width) / 2, y);
-      y += 30;
+      // 6. Top brand — with generous top padding
+      let y = 82;
+      ctx.font = `500 24px 'DM Sans', Arial, sans-serif`;
+      ctx.fillStyle = `rgba(201,168,76,0.75)`;
+      ctx.textAlign = 'center';
+      ctx.fillText('✦  C E L E S T I A  ✦', W / 2, y);
+      ctx.textAlign = 'left';
+      y += 34;
       ctx.strokeStyle = 'rgba(201,168,76,0.22)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(PX, y); ctx.lineTo(W - PX, y); ctx.stroke();
-      y += 52;
+      y += 68;
 
-      // 7. Date
+      // 7. Date (left-aligned)
       if (card.display_date) {
-        ctx.font = `400 23px 'DM Sans', Arial, sans-serif`;
+        ctx.font = `400 22px 'DM Sans', Arial, sans-serif`;
         ctx.fillStyle = GOLD;
         ctx.fillText(card.display_date.toUpperCase(), PX, y);
-        y += 56;
+        y += 58;
       }
+      y += 28; // extra margin before title
 
-      // 8. Title
+      // 8. Title — centered
       ctx.font = `bold 66px 'Playfair Display', Georgia, serif`;
       ctx.fillStyle = TEXT;
-      for (const line of wrapText(ctx, card.title, W - PX * 2).slice(0, 5)) {
-        ctx.fillText(line, PX, y); y += 80;
-      }
-      y += 10;
-
-      // 9. Author
-      ctx.font = `500 27px 'DM Sans', Arial, sans-serif`;
-      ctx.fillStyle = GOLD;
-      ctx.fillText(
-        (card.author_display_name || '') + (card.author_username ? '   @' + card.author_username : ''),
-        PX, y
-      );
-      y += 62;
-
-      // 10. ✦ Poem ✦ divider — centered
-      ctx.font = `400 21px 'DM Sans', Arial, sans-serif`;
-      ctx.fillStyle = GOLD;
       ctx.textAlign = 'center';
-      ctx.fillText('✦  Poem  ✦', W / 2, y + 7);
+      for (const line of wrapText(ctx, card.title, W - PX * 2).slice(0, 5)) {
+        ctx.fillText(line, W / 2, y); y += 80;
+      }
       ctx.textAlign = 'left';
-      y += 50;
+      y += 36;
 
-      // 11. Full poem — centered, no truncation
+      // 9. Author — avatar circle + display name centered as group (no @username)
+      const AVATAR_R = 38;
+      const authorName = card.author_display_name || '';
+      ctx.font = `500 29px 'DM Sans', Arial, sans-serif`;
+      const AV_GAP = 20;
+      const groupW = AVATAR_R * 2 + AV_GAP + ctx.measureText(authorName).width;
+      const groupStartX = (W - groupW) / 2;
+      const avatarCX = groupStartX + AVATAR_R;
+      const avatarCY = y + AVATAR_R;
+
+      let avatarDrawn = false;
+      if (card.author_avatar_url) {
+        try {
+          const avi = await loadImage(card.author_avatar_url);
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(avatarCX, avatarCY, AVATAR_R, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(avi, avatarCX - AVATAR_R, avatarCY - AVATAR_R, AVATAR_R * 2, AVATAR_R * 2);
+          ctx.restore();
+          avatarDrawn = true;
+        } catch { /* fallback below */ }
+      }
+      if (!avatarDrawn) {
+        const grad = ctx.createRadialGradient(avatarCX - 12, avatarCY - 12, 0, avatarCX, avatarCY, AVATAR_R);
+        grad.addColorStop(0, '#e8c86e'); grad.addColorStop(1, '#7a5a1a');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(avatarCX, avatarCY, AVATAR_R, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = DARK;
+        ctx.font = `bold 36px 'Playfair Display', Georgia, serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(authorName.charAt(0).toUpperCase(), avatarCX, avatarCY + 13);
+        ctx.textAlign = 'left';
+      }
+      ctx.strokeStyle = GOLD; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(avatarCX, avatarCY, AVATAR_R + 4, 0, Math.PI * 2); ctx.stroke();
+      ctx.font = `500 29px 'DM Sans', Arial, sans-serif`;
+      ctx.fillStyle = GOLD;
+      ctx.fillText(authorName, groupStartX + AVATAR_R * 2 + AV_GAP, avatarCY + 10);
+      y = avatarCY + AVATAR_R + 60;
+
+      // 10. Thin separator before poem
+      ctx.strokeStyle = 'rgba(201,168,76,0.22)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PX, y); ctx.lineTo(W - PX, y); ctx.stroke();
+      y += 54;
+
+      // 11. Full poem — centered, no divider label
       ctx.font = `italic 31px 'Playfair Display', Georgia, serif`;
       ctx.fillStyle = TEXT;
       ctx.textAlign = 'center';
@@ -377,14 +421,6 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
         }
       }
       ctx.textAlign = 'left';
-      y += 30;
-
-      // 12. Bottom gold line + Celestia
-      ctx.strokeStyle = 'rgba(201,168,76,0.22)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(PX, H - 68); ctx.lineTo(W - PX, H - 68); ctx.stroke();
-      ctx.font = `600 27px 'DM Sans', Arial, sans-serif`;
-      ctx.fillStyle = GOLD;
-      ctx.fillText('✦  Celestia', PX, H - 38);
 
       // Download
       canvas.toBlob(blob => {
