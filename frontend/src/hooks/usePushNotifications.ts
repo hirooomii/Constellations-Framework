@@ -4,11 +4,13 @@ import { getSession } from '@/lib/api';
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '';
 
-function urlB64ToUint8Array(base64: string): Uint8Array {
-  const pad  = '='.repeat((4 - (base64.length % 4)) % 4);
-  const b64  = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
-  const raw  = atob(b64);
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+function urlB64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
+  const pad    = '='.repeat((4 - (base64.length % 4)) % 4);
+  const b64    = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw    = atob(b64);
+  const bytes  = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
 }
 
 export function usePushNotifications(user: User | null) {
@@ -42,6 +44,13 @@ export function usePushNotifications(user: User | null) {
         const session = getSession();
         if (!session?.access_token) return;
 
+        const toBase64 = (buf: ArrayBuffer) => {
+          const bytes = new Uint8Array(buf);
+          let str = '';
+          for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+          return btoa(str);
+        };
+
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/push/subscribe`, {
           method:  'POST',
           headers: {
@@ -50,8 +59,8 @@ export function usePushNotifications(user: User | null) {
           },
           body: JSON.stringify({
             endpoint: sub.endpoint,
-            p256dh:   btoa(String.fromCharCode(...new Uint8Array(p256dh))),
-            auth:     btoa(String.fromCharCode(...new Uint8Array(auth))),
+            p256dh:   toBase64(p256dh),
+            auth:     toBase64(auth),
           }),
         });
       } catch {
