@@ -240,7 +240,7 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
       tmp.font = `italic 31px 'Playfair Display', Georgia, serif`;
       let poemLineCount = 0;
       for (const l of card.poem.split('\n'))
-        poemLineCount += wrapText(tmp, l.trim() || ' ', W - PX * 2 - 32).length;
+        poemLineCount += wrapText(tmp, l.trim() || ' ', W - PX * 2).length;
 
       const H = Math.max(1350,
         120              // top brand
@@ -307,9 +307,21 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
         }
       }
 
-      // 5. Gold border
-      ctx.strokeStyle = GOLD; ctx.lineWidth = BORDER;
-      ctx.strokeRect(BORDER / 2, BORDER / 2, W - BORDER, H - BORDER);
+      // 5. Art Deco gold border — outer + inner rect with concave corner arcs
+      const OUT = 8, INN = 30, GAP = INN - OUT;
+      ctx.strokeStyle = GOLD;
+      // Outer rectangle
+      ctx.lineWidth = 2;
+      ctx.strokeRect(OUT, OUT, W - OUT * 2, H - OUT * 2);
+      // Inner rectangle
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(INN, INN, W - INN * 2, H - INN * 2);
+      // Quarter-circle arcs at each corner (concave, fills the gap between rects)
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(INN,     INN,     GAP, Math.PI,       Math.PI * 1.5); ctx.stroke();
+      ctx.beginPath(); ctx.arc(W - INN, INN,     GAP, Math.PI * 1.5, Math.PI * 2  ); ctx.stroke();
+      ctx.beginPath(); ctx.arc(W - INN, H - INN, GAP, 0,             Math.PI * 0.5); ctx.stroke();
+      ctx.beginPath(); ctx.arc(INN,     H - INN, GAP, Math.PI * 0.5, Math.PI      ); ctx.stroke();
 
       // 6. Top inner line + brand
       let y = 52;
@@ -347,28 +359,24 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
       );
       y += 62;
 
-      // 10. ✦ Poem ✦ divider
-      ctx.strokeStyle = 'rgba(201,168,76,0.28)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(PX, y); ctx.lineTo(PX + 108, y); ctx.stroke();
+      // 10. ✦ Poem ✦ divider — centered
       ctx.font = `400 21px 'DM Sans', Arial, sans-serif`;
       ctx.fillStyle = GOLD;
-      ctx.fillText('✦  Poem  ✦', PX + 120, y + 7);
-      ctx.beginPath(); ctx.moveTo(PX + 272, y); ctx.lineTo(W - PX, y); ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillText('✦  Poem  ✦', W / 2, y + 7);
+      ctx.textAlign = 'left';
       y += 50;
 
-      // 11. Full poem — no truncation
+      // 11. Full poem — centered, no truncation
       ctx.font = `italic 31px 'Playfair Display', Georgia, serif`;
       ctx.fillStyle = TEXT;
-      const poemStartY = y;
+      ctx.textAlign = 'center';
       for (const rawLine of card.poem.split('\n')) {
-        for (const chunk of wrapText(ctx, rawLine.trim() || ' ', W - PX * 2 - 32)) {
-          ctx.fillText(chunk, PX + 32, y); y += 48;
+        for (const chunk of wrapText(ctx, rawLine.trim() || ' ', W - PX * 2)) {
+          ctx.fillText(chunk, W / 2, y); y += 48;
         }
       }
-      // Poem left border
-      ctx.strokeStyle = 'rgba(201,168,76,0.28)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(PX + 12, poemStartY - 22);
-      ctx.lineTo(PX + 12, y - 8); ctx.stroke();
+      ctx.textAlign = 'left';
       y += 30;
 
       // 12. Bottom gold line + Celestia
