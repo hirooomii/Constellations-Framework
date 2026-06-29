@@ -124,7 +124,7 @@ export default function CardFormModal({ open, onClose, onSaved, toast, editCard 
           poem: poem.trim(),
           description: desc.trim() || 'A verse without bounds',
           image_url: imgUrl.trim() || undefined,
-          display_date: displayDate || editCard.display_date ?? undefined,
+          display_date: displayDate || (editCard.display_date ?? undefined),
         });
         toast('Verse updated ✦');
       } else {
