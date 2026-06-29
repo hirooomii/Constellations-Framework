@@ -24,8 +24,9 @@ Route::patch('/profiles',                 [ProfileController::class, 'update'])-
 Route::post('/profiles/avatar',           [ProfileController::class, 'updateAvatar'])->middleware('auth.supabase');
 
 // ── CARDS (public) ────────────────────────────────────────────────────────────
-Route::get('/cards',          [CardController::class, 'index']);
-Route::get('/cards/{id}',     [CardController::class, 'show']);
+Route::get('/cards',                                                    [CardController::class, 'index']);
+Route::get('/cards/mine/scheduled', [CardController::class, 'myScheduled'])->middleware('auth.supabase');
+Route::get('/cards/{id}',                                               [CardController::class, 'show']);
 
 // ── CARDS (authenticated) ─────────────────────────────────────────────────────
 Route::middleware('auth.supabase')->group(function () {

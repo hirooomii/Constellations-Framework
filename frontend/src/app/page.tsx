@@ -57,10 +57,14 @@ function HomeInner() {
   }, [showToast]);
 
   const loadScheduled = useCallback(async () => {
-    if (!isAdmin) return;
-    try { setScheduledCards(await cardsApi.scheduledList()); }
-    catch { /* silent */ }
-  }, [isAdmin]);
+    if (!isAdmin && !isRegistered) return;
+    try {
+      const cards = isAdmin
+        ? await cardsApi.scheduledList()
+        : await cardsApi.myScheduled();
+      setScheduledCards(cards);
+    } catch { /* silent */ }
+  }, [isAdmin, isRegistered]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -92,14 +96,16 @@ function HomeInner() {
     const tick = setInterval(async () => {
       const prev = scheduledCards.length;
       await loadPublished();
-      if (isAdmin) {
-        const fresh = await cardsApi.scheduledList().catch(() => []);
+      if (isAdmin || isRegistered) {
+        const fresh = isAdmin
+          ? await cardsApi.scheduledList().catch(() => [])
+          : await cardsApi.myScheduled().catch(() => []);
         if (fresh.length < prev) showToast('A scheduled verse just went live ✦');
         setScheduledCards(fresh);
       }
     }, 30000);
     return () => clearInterval(tick);
-  }, [user, scheduledCards.length, isAdmin, loadPublished, showToast]);
+  }, [user, scheduledCards.length, isAdmin, isRegistered, loadPublished, showToast]);
 
   // Handle OAuth redirect callback (Facebook / GitHub)
   useEffect(() => {

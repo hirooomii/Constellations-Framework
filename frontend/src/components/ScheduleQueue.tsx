@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/types';
 import { cards as cardsApi } from '@/lib/api';
 
@@ -10,29 +10,41 @@ interface ScheduleQueueProps {
 }
 
 export default function ScheduleQueue({ scheduledCards, onRefresh, toast }: ScheduleQueueProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
+  const [, tick] = useState(0);
 
-  if (scheduledCards.length === 0 && !open) {
-    return (
-      <div style={s.wrap}>
-        <div style={s.header} onClick={() => setOpen(true)}>
-          <span style={s.label}>⏰ Scheduled Verses</span>
-          <span style={s.count}>0</span>
-        </div>
-      </div>
+  // Live countdown — re-render every second
+  useEffect(() => {
+    const id = setInterval(() => tick(n => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Auto-refresh feed when a card's scheduled time has passed
+  const handleAutoRefresh = useCallback(() => {
+    onRefresh();
+    toast('A scheduled verse just went live ✦');
+  }, [onRefresh, toast]);
+
+  useEffect(() => {
+    const ready = scheduledCards.some(
+      c => c.scheduled_at && new Date(c.scheduled_at).getTime() <= Date.now()
     );
-  }
+    if (!ready) return;
+    const id = setTimeout(handleAutoRefresh, 4000);
+    return () => clearTimeout(id);
+  }, [scheduledCards, handleAutoRefresh]);
 
-  function getCountdown(scheduledAt: string): string {
+  function getCountdown(scheduledAt: string): { text: string; live: boolean } {
     const diff = new Date(scheduledAt).getTime() - Date.now();
-    if (diff <= 0) return 'posting soon…';
+    if (diff <= 0) return { text: '🟡 Going live…', live: false };
     const days = Math.floor(diff / 86400000);
     const hrs  = Math.floor((diff % 86400000) / 3600000);
     const mins = Math.floor((diff % 3600000) / 60000);
-    if (days > 0) return `in ${days}d ${hrs}h`;
-    if (hrs > 0)  return `in ${hrs}h ${mins}m`;
-    if (mins > 0) return `in ${mins}m`;
-    return 'posting soon…';
+    const secs = Math.floor((diff % 60000) / 1000);
+    if (days > 0) return { text: `in ${days}d ${hrs}h ${mins}m`, live: true };
+    if (hrs  > 0) return { text: `in ${hrs}h ${mins}m ${secs}s`, live: true };
+    if (mins > 0) return { text: `in ${mins}m ${secs}s`, live: true };
+    return { text: `in ${secs}s`, live: true };
   }
 
   async function publishNow(card: Card) {
@@ -73,7 +85,14 @@ export default function ScheduleQueue({ scheduledCards, onRefresh, toast }: Sche
                   <span style={s.clock}>
                     🕐 {card.scheduled_at ? new Date(card.scheduled_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
                   </span>
-                  <span style={s.countdown}>{card.scheduled_at ? getCountdown(card.scheduled_at) : ''}</span>
+                  {card.scheduled_at && (() => {
+                    const { text, live } = getCountdown(card.scheduled_at);
+                    return (
+                      <span style={{ ...s.countdown, ...(live ? {} : { color: '#f0c040', fontStyle: 'normal', fontWeight: 600 }) }}>
+                        {text}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
               <div style={s.actions}>

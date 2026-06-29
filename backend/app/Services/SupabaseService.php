@@ -302,6 +302,19 @@ class SupabaseService
         return array_map([$this, 'enrichCardWithAvatar'], $cards);
     }
 
+    public function getMyScheduledCards(string $userId): array
+    {
+        $now = now()->toIso8601String();
+        $res = $this->http()->get("{$this->url}/rest/v1/cards", [
+            'select'       => '*',
+            'scheduled_at' => "gt.{$now}",
+            'author_id'    => "eq.{$userId}",
+            'order'        => 'scheduled_at.asc',
+        ]);
+        $cards = $res->successful() ? $res->json() : [];
+        return array_map([$this, 'enrichCardWithAvatar'], $cards);
+    }
+
     public function getCard(string $id): ?array
     {
         $res = $this->http()->get("{$this->url}/rest/v1/cards", [

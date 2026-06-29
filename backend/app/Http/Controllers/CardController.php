@@ -88,6 +88,13 @@ class CardController extends Controller
         return response()->json($cards);
     }
 
+    public function myScheduled(Request $request): JsonResponse
+    {
+        $user = $request->supabaseUser;
+        $cards = $this->supabase->getMyScheduledCards($user['id']);
+        return response()->json($cards);
+    }
+
     public function show(string $id): JsonResponse
     {
         $card = $this->supabase->getCard($id);

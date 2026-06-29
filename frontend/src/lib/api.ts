@@ -146,6 +146,9 @@ export const cards = {
   scheduledList: (): Promise<Card[]> =>
     apiFetch('/admin/cards/scheduled', {}, true) as Promise<Card[]>,
 
+  myScheduled: (): Promise<Card[]> =>
+    apiFetch('/cards/mine/scheduled', {}, true) as Promise<Card[]>,
+
   create: (data: Partial<Card>): Promise<Card> =>
     apiFetch('/cards', { method: 'POST', body: JSON.stringify(data) }, true) as Promise<Card>,
 
