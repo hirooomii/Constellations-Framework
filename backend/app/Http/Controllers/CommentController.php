@@ -78,10 +78,10 @@ class CommentController extends Controller
         }
 
         // ── Push: top-level comment → notify card owner ────────────────────────
-        if (empty($data['parent_id']) && ($card['user_id'] ?? null) && $card['user_id'] !== $user['id']) {
+        if (empty($data['parent_id']) && ($card['author_id'] ?? null) && $card['author_id'] !== $user['id']) {
             try {
                 $this->push->sendToUser(
-                    $card['user_id'],
+                    $card['author_id'],
                     "{$commenterName} 📝",
                     "Commented on your verses: {$preview}",
                     '/',

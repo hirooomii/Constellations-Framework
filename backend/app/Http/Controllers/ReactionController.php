@@ -45,12 +45,12 @@ class ReactionController extends Controller
         if (($result['action'] ?? '') === 'added' && !str_starts_with($data['user_identifier'], 'anon_')) {
             try {
                 $card = $this->supabase->getCard($id);
-                if ($card && ($card['user_id'] ?? null) && $card['user_id'] !== $data['user_identifier']) {
+                if ($card && ($card['author_id'] ?? null) && $card['author_id'] !== $data['user_identifier']) {
                     $reactor     = $this->supabase->getProfile($data['user_identifier']);
                     $reactorName = $reactor['display_name'] ?? $reactor['username'] ?? 'Someone';
                     $emoji       = self::EMOJI_MAP[$data['reaction_type']] ?? '✨';
                     $this->push->sendToUser(
-                        $card['user_id'],
+                        $card['author_id'],
                         "{$reactorName} {$emoji}",
                         'Reacted to your verses',
                         '/',
