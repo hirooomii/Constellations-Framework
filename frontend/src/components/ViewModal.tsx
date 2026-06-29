@@ -229,132 +229,154 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
     setDownloading(true);
     try {
       await document.fonts.ready;
-      const W = 1080, H = 1350;
+      const W = 1080;
       const GOLD = '#c9a84c', DARK = '#0c0b09', TEXT = '#e8e4d6';
-      const IMG_H = 480, PX = 80;
+      const PX = 90, BORDER = 5;
 
+      // ── Pre-measure to get dynamic height ───────────────────────────────────
+      const tmp = document.createElement('canvas').getContext('2d')!;
+      tmp.font = `bold 66px 'Playfair Display', Georgia, serif`;
+      const titleLineCount = wrapText(tmp, card.title, W - PX * 2).length;
+      tmp.font = `italic 31px 'Playfair Display', Georgia, serif`;
+      let poemLineCount = 0;
+      for (const l of card.poem.split('\n'))
+        poemLineCount += wrapText(tmp, l.trim() || ' ', W - PX * 2 - 32).length;
+
+      const H = Math.max(1350,
+        120              // top brand
+        + (card.display_date ? 56 : 0)
+        + titleLineCount * 80 + 20
+        + 68             // author
+        + 62             // divider
+        + poemLineCount * 48 + 30
+        + 120            // footer
+      );
+
+      // ── Canvas ───────────────────────────────────────────────────────────────
       const canvas = document.createElement('canvas');
       canvas.width = W; canvas.height = H;
       const ctx = canvas.getContext('2d')!;
 
-      // Dark base
-      ctx.fillStyle = DARK;
-      ctx.fillRect(0, 0, W, H);
+      // 1. Dark base
+      ctx.fillStyle = DARK; ctx.fillRect(0, 0, W, H);
 
-      // Hero image
-      let imgOk = false;
+      // 2. Full-bleed background image at low opacity
       if (card.image_url) {
         try {
-          const src = card.image_url.includes('lh3.googleusercontent.com')
-            ? card.image_url : card.image_url;
-          const img = await loadImage(src);
-          const scale = Math.max(W / img.width, IMG_H / img.height);
+          const img = await loadImage(card.image_url);
+          ctx.save();
+          ctx.globalAlpha = 0.28;
+          const scale = Math.max(W / img.width, H / img.height);
           const sw = img.width * scale, sh = img.height * scale;
-          ctx.drawImage(img, (W - sw) / 2, 0, sw, sh);
-          imgOk = true;
-        } catch { /* fallback */ }
-      }
-      if (!imgOk) {
-        const g = ctx.createLinearGradient(0, 0, W, IMG_H);
-        g.addColorStop(0, '#1e1a12'); g.addColorStop(1, DARK);
-        ctx.fillStyle = g; ctx.fillRect(0, 0, W, IMG_H);
+          ctx.drawImage(img, (W - sw) / 2, (H - sh) / 2, sw, sh);
+          ctx.restore();
+        } catch { /* keep dark base */ }
       }
 
-      // Overlay fade
-      const ov = ctx.createLinearGradient(0, IMG_H * 0.25, 0, IMG_H + 10);
-      ov.addColorStop(0, 'rgba(12,11,9,0)'); ov.addColorStop(1, 'rgba(12,11,9,1)');
-      ctx.fillStyle = ov; ctx.fillRect(0, 0, W, IMG_H + 10);
+      // 3. Dark scrim so text stays readable
+      const scrim = ctx.createLinearGradient(0, 0, 0, H);
+      scrim.addColorStop(0,   'rgba(12,11,9,0.82)');
+      scrim.addColorStop(0.35,'rgba(12,11,9,0.60)');
+      scrim.addColorStop(0.65,'rgba(12,11,9,0.68)');
+      scrim.addColorStop(1,   'rgba(12,11,9,0.90)');
+      ctx.fillStyle = scrim; ctx.fillRect(0, 0, W, H);
 
-      // Stars (deterministic)
+      // 4. Stars + constellation
       let seed = card.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
       const rng = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-      const stars: {x:number;y:number}[] = [];
-      for (let i = 0; i < 160; i++) {
+      const stars: {x:number; y:number}[] = [];
+      for (let i = 0; i < 200; i++) {
         const x = rng() * W, y = rng() * H;
-        const r = rng() * 1.6 + 0.2, a = rng() * 0.55 + 0.15;
-        stars.push({x, y});
+        const r = rng() * 1.6 + 0.2, a = rng() * 0.55 + 0.12;
+        stars.push({ x, y });
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(232,228,214,${a})`; ctx.fill();
-        // Twinkle glow on brighter stars
-        if (a > 0.55) {
-          ctx.beginPath(); ctx.arc(x, y, r * 2.5, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(232,228,214,0.06)`; ctx.fill();
+        if (a > 0.5) {
+          ctx.beginPath(); ctx.arc(x, y, r * 3, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(232,228,214,0.05)`; ctx.fill();
         }
       }
-
-      // Constellation lines
-      ctx.lineWidth = 0.8;
-      for (let i = 0; i < 18; i++) {
+      ctx.lineWidth = 0.7;
+      for (let i = 0; i < 24; i++) {
         const s1 = stars[Math.floor(rng() * stars.length)];
         const s2 = stars[Math.floor(rng() * stars.length)];
         const d = Math.hypot(s2.x - s1.x, s2.y - s1.y);
-        if (d > 50 && d < 220) {
+        if (d > 60 && d < 260) {
           ctx.beginPath(); ctx.moveTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y);
-          ctx.strokeStyle = `rgba(201,168,76,0.18)`; ctx.stroke();
+          ctx.strokeStyle = `rgba(201,168,76,0.14)`; ctx.stroke();
         }
       }
 
-      // Gold left accent bar
-      ctx.fillStyle = GOLD; ctx.fillRect(0, IMG_H + 30, 3, H - IMG_H - 110);
+      // 5. Gold border
+      ctx.strokeStyle = GOLD; ctx.lineWidth = BORDER;
+      ctx.strokeRect(BORDER / 2, BORDER / 2, W - BORDER, H - BORDER);
 
-      let y = IMG_H + 55;
+      // 6. Top inner line + brand
+      let y = 52;
+      ctx.font = `500 23px 'DM Sans', Arial, sans-serif`;
+      ctx.fillStyle = `rgba(201,168,76,0.7)`;
+      const brand = '✦  C E L E S T I A  ✦';
+      ctx.fillText(brand, (W - ctx.measureText(brand).width) / 2, y);
+      y += 30;
+      ctx.strokeStyle = 'rgba(201,168,76,0.22)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PX, y); ctx.lineTo(W - PX, y); ctx.stroke();
+      y += 52;
 
-      // Date
+      // 7. Date
       if (card.display_date) {
-        ctx.font = `400 22px 'DM Sans', Arial, sans-serif`;
-        ctx.fillStyle = GOLD; ctx.fillText(card.display_date.toUpperCase(), PX, y);
-        y += 46;
+        ctx.font = `400 23px 'DM Sans', Arial, sans-serif`;
+        ctx.fillStyle = GOLD;
+        ctx.fillText(card.display_date.toUpperCase(), PX, y);
+        y += 56;
       }
 
-      // Title
-      ctx.font = `bold 62px 'Playfair Display', Georgia, serif`;
+      // 8. Title
+      ctx.font = `bold 66px 'Playfair Display', Georgia, serif`;
       ctx.fillStyle = TEXT;
-      const titleLines = wrapText(ctx, card.title, W - PX * 2);
-      for (const line of titleLines.slice(0, 3)) { ctx.fillText(line, PX, y); y += 74; }
-      y += 8;
+      for (const line of wrapText(ctx, card.title, W - PX * 2).slice(0, 5)) {
+        ctx.fillText(line, PX, y); y += 80;
+      }
+      y += 10;
 
-      // Author
-      ctx.font = `500 26px 'DM Sans', Arial, sans-serif`;
+      // 9. Author
+      ctx.font = `500 27px 'DM Sans', Arial, sans-serif`;
       ctx.fillStyle = GOLD;
-      const authorStr = (card.author_display_name || '') +
-        (card.author_username ? '   @' + card.author_username : '');
-      ctx.fillText(authorStr, PX, y); y += 56;
+      ctx.fillText(
+        (card.author_display_name || '') + (card.author_username ? '   @' + card.author_username : ''),
+        PX, y
+      );
+      y += 62;
 
-      // ✦ Poem ✦ divider
-      ctx.strokeStyle = `rgba(201,168,76,0.28)`; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(PX, y); ctx.lineTo(PX + 100, y); ctx.stroke();
-      ctx.font = `400 20px 'DM Sans', Arial, sans-serif`;
-      ctx.fillStyle = GOLD; ctx.fillText('✦  Poem  ✦', PX + 112, y + 6);
-      ctx.beginPath(); ctx.moveTo(PX + 258, y); ctx.lineTo(W - PX, y); ctx.stroke();
-      y += 44;
+      // 10. ✦ Poem ✦ divider
+      ctx.strokeStyle = 'rgba(201,168,76,0.28)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PX, y); ctx.lineTo(PX + 108, y); ctx.stroke();
+      ctx.font = `400 21px 'DM Sans', Arial, sans-serif`;
+      ctx.fillStyle = GOLD;
+      ctx.fillText('✦  Poem  ✦', PX + 120, y + 7);
+      ctx.beginPath(); ctx.moveTo(PX + 272, y); ctx.lineTo(W - PX, y); ctx.stroke();
+      y += 50;
 
-      // Poem text
-      ctx.font = `italic 30px 'Playfair Display', Georgia, serif`;
+      // 11. Full poem — no truncation
+      ctx.font = `italic 31px 'Playfair Display', Georgia, serif`;
       ctx.fillStyle = TEXT;
-      const maxPoemBottom = H - 130;
       const poemStartY = y;
-      const poemLines = card.poem.split('\n');
-      for (const rawLine of poemLines) {
-        const chunks = wrapText(ctx, rawLine.trim() || ' ', W - PX * 2 - 28);
-        for (const chunk of chunks) {
-          if (y > maxPoemBottom) { ctx.fillText('…', PX + 28, y); y += 40; break; }
-          ctx.fillText(chunk, PX + 28, y); y += 42;
+      for (const rawLine of card.poem.split('\n')) {
+        for (const chunk of wrapText(ctx, rawLine.trim() || ' ', W - PX * 2 - 32)) {
+          ctx.fillText(chunk, PX + 32, y); y += 48;
         }
-        if (y > maxPoemBottom) break;
       }
-
       // Poem left border
-      ctx.strokeStyle = 'rgba(201,168,76,0.22)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(PX + 8, poemStartY - 18); ctx.lineTo(PX + 8, y - 10); ctx.stroke();
+      ctx.strokeStyle = 'rgba(201,168,76,0.28)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(PX + 12, poemStartY - 22);
+      ctx.lineTo(PX + 12, y - 8); ctx.stroke();
+      y += 30;
 
-      // Footer gradient
-      const fg = ctx.createLinearGradient(0, H - 130, 0, H);
-      fg.addColorStop(0, 'rgba(12,11,9,0)'); fg.addColorStop(1, 'rgba(12,11,9,0.97)');
-      ctx.fillStyle = fg; ctx.fillRect(0, H - 130, W, 130);
-
-      // ✦ Celestia branding
-      ctx.font = `600 28px 'DM Sans', Arial, sans-serif`;
-      ctx.fillStyle = GOLD; ctx.fillText('✦  Celestia', PX, H - 38);
+      // 12. Bottom gold line + Celestia
+      ctx.strokeStyle = 'rgba(201,168,76,0.22)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PX, H - 68); ctx.lineTo(W - PX, H - 68); ctx.stroke();
+      ctx.font = `600 27px 'DM Sans', Arial, sans-serif`;
+      ctx.fillStyle = GOLD;
+      ctx.fillText('✦  Celestia', PX, H - 38);
 
       // Download
       canvas.toBlob(blob => {
@@ -366,6 +388,7 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
         a.click();
         URL.revokeObjectURL(url);
       }, 'image/png');
+
     } catch { toast('Download failed'); }
     finally { setDownloading(false); }
   }
