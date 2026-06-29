@@ -246,8 +246,8 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
         175
         + (card.display_date ? 70 : 0)
         + 40
-        + titleLineCount * 80 + 60
-        + 110
+        + titleLineCount * 80 + 18
+        + 70                          // compact author row
         + poemLineCount * 48 + 100
       );
 
@@ -363,13 +363,13 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
         ctx.fillText(line, W / 2, y); y += 80;
       }
       ctx.textAlign = 'left';
-      y += 36;
+      y += 18;
 
-      // 9. Author — avatar circle + display name centered as group (no @username)
-      const AVATAR_R = 38;
+      // 9. Author — small avatar + display name tight below title, centered as group
+      const AVATAR_R = 22;
       const authorName = card.author_display_name || '';
-      ctx.font = `500 29px 'DM Sans', Arial, sans-serif`;
-      const AV_GAP = 20;
+      ctx.font = `500 24px 'DM Sans', Arial, sans-serif`;
+      const AV_GAP = 14;
       const groupW = AVATAR_R * 2 + AV_GAP + ctx.measureText(authorName).width;
       const groupStartX = (W - groupW) / 2;
       const avatarCX = groupStartX + AVATAR_R;
@@ -389,22 +389,22 @@ export default function ViewModal({ card, onClose, onEdit, onDelete, user, toast
         } catch { /* fallback below */ }
       }
       if (!avatarDrawn) {
-        const grad = ctx.createRadialGradient(avatarCX - 12, avatarCY - 12, 0, avatarCX, avatarCY, AVATAR_R);
+        const grad = ctx.createRadialGradient(avatarCX - 8, avatarCY - 8, 0, avatarCX, avatarCY, AVATAR_R);
         grad.addColorStop(0, '#e8c86e'); grad.addColorStop(1, '#7a5a1a');
         ctx.fillStyle = grad;
         ctx.beginPath(); ctx.arc(avatarCX, avatarCY, AVATAR_R, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = DARK;
-        ctx.font = `bold 36px 'Playfair Display', Georgia, serif`;
+        ctx.font = `bold 20px 'Playfair Display', Georgia, serif`;
         ctx.textAlign = 'center';
-        ctx.fillText(authorName.charAt(0).toUpperCase(), avatarCX, avatarCY + 13);
+        ctx.fillText(authorName.charAt(0).toUpperCase(), avatarCX, avatarCY + 7);
         ctx.textAlign = 'left';
       }
-      ctx.strokeStyle = GOLD; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(avatarCX, avatarCY, AVATAR_R + 4, 0, Math.PI * 2); ctx.stroke();
-      ctx.font = `500 29px 'DM Sans', Arial, sans-serif`;
+      ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(avatarCX, avatarCY, AVATAR_R + 3, 0, Math.PI * 2); ctx.stroke();
+      ctx.font = `500 24px 'DM Sans', Arial, sans-serif`;
       ctx.fillStyle = GOLD;
-      ctx.fillText(authorName, groupStartX + AVATAR_R * 2 + AV_GAP, avatarCY + 10);
-      y = avatarCY + AVATAR_R + 60;
+      ctx.fillText(authorName, groupStartX + AVATAR_R * 2 + AV_GAP, avatarCY + 8);
+      y = avatarCY + AVATAR_R + 44;
 
       // 10. Thin separator before poem
       ctx.strokeStyle = 'rgba(201,168,76,0.22)'; ctx.lineWidth = 1;
