@@ -6,10 +6,11 @@ import { cards as cardsApi } from '@/lib/api';
 interface ScheduleQueueProps {
   scheduledCards: Card[];
   onRefresh: () => void;
+  onScheduledLive?: () => void;
   toast: (msg: string) => void;
 }
 
-export default function ScheduleQueue({ scheduledCards, onRefresh, toast }: ScheduleQueueProps) {
+export default function ScheduleQueue({ scheduledCards, onRefresh, onScheduledLive, toast }: ScheduleQueueProps) {
   const [open, setOpen] = useState(true);
   const [, tick] = useState(0);
 
@@ -21,9 +22,9 @@ export default function ScheduleQueue({ scheduledCards, onRefresh, toast }: Sche
 
   // Auto-refresh feed when a card's scheduled time has passed
   const handleAutoRefresh = useCallback(() => {
-    onRefresh();
+    (onScheduledLive ?? onRefresh)();
     toast('A scheduled verse just went live ✦');
-  }, [onRefresh, toast]);
+  }, [onRefresh, onScheduledLive, toast]);
 
   useEffect(() => {
     const ready = scheduledCards.some(

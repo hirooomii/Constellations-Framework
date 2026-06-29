@@ -173,6 +173,15 @@ function HomeInner() {
     if (isAdmin || isRegistered) await loadScheduled();
   }
 
+  async function handleScheduledLive() {
+    setPublishedCards(prev => [{ id: '__live_shimmer__', title: '', poem: '' } as Card, ...prev]);
+    await Promise.all([
+      loadPublished(),
+      new Promise<void>(resolve => setTimeout(resolve, 2000)),
+    ]);
+    await loadScheduled();
+  }
+
   const canAddVerse = isAdmin || isRegistered;
   const totalPages  = Math.ceil(publishedCards.length / CARDS_PER_PAGE);
   const paginatedCards = publishedCards.slice(
@@ -324,7 +333,7 @@ function HomeInner() {
             )}
 
             {(isAdmin || isRegistered) && scheduledCards.length > 0 && (
-              <ScheduleQueue scheduledCards={scheduledCards} onRefresh={refresh} toast={showToast} />
+              <ScheduleQueue scheduledCards={scheduledCards} onRefresh={refresh} onScheduledLive={handleScheduledLive} toast={showToast} />
             )}
 
             {loading ? (

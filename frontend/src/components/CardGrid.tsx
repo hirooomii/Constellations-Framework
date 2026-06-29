@@ -111,7 +111,8 @@ const shimmerStyle = `
 }
 `;
 
-const UPLOADING_ID = '__uploading__';
+const UPLOADING_ID    = '__uploading__';
+const LIVE_SHIMMER_ID = '__live_shimmer__';
 
 function CardSkeleton({ index }: { index: number }) {
   return (
@@ -269,6 +270,26 @@ export default function CardGrid({ cards, isAdmin, currentUserId, feedMode, onCa
           // Uploading placeholder
           if (card.id === UPLOADING_ID) {
             return <UploadingCard key={UPLOADING_ID} card={card} />;
+          }
+
+          // Live shimmer — shown briefly when a scheduled card goes live
+          if (card.id === LIVE_SHIMMER_ID) {
+            return (
+              <div key={LIVE_SHIMMER_ID} className="card-skeleton">
+                <div className="card-skeleton-shine" />
+                <div className="card-skeleton-content">
+                  <div className="card-skeleton-line" style={{ width: '40%', height: '8px', marginBottom: '10px' }} />
+                  <div className="card-skeleton-line" style={{ width: '80%', height: '18px', marginBottom: '6px' }} />
+                  <div className="card-skeleton-line" style={{ width: '55%', height: '18px', marginBottom: '14px' }} />
+                  <div className="card-skeleton-line" style={{ width: '60%', height: '10px', marginBottom: '6px' }} />
+                  <div className="card-skeleton-line" style={{ width: '90%', height: '10px' }} />
+                </div>
+                <div style={s.uploadingBadge}>
+                  <div style={s.uploadingSpinner} />
+                  <span style={{ fontSize: '.72rem', color: 'var(--gold)', letterSpacing: '.08em' }}>Going live…</span>
+                </div>
+              </div>
+            );
           }
 
           const isVis    = visible.has(card.id);

@@ -263,12 +263,12 @@ class SupabaseService
         $now = now()->toIso8601String();
         $res = $this->http()->get("{$this->url}/rest/v1/cards", [
             'select' => '*',
-            'order'  => 'display_date.desc,created_at.desc',
             'or'     => "(scheduled_at.is.null,scheduled_at.lte.{$now})",
         ]);
         $cards = $res->successful() ? $res->json() : [];
         $cards = array_map([$this, 'enrichCardWithAvatar'], $cards);
-        return array_map([$this, 'enrichCardWithReactions'], $cards);
+        $cards = array_map([$this, 'enrichCardWithReactions'], $cards);
+        return $this->sortByDisplayDate($cards);
     }
 
     public function getFollowingCards(array $followingIds, string $userId): array
@@ -281,13 +281,23 @@ class SupabaseService
 
         $res = $this->http()->get("{$this->url}/rest/v1/cards", [
             'select'    => '*',
-            'order'     => 'display_date.desc,created_at.desc',
             'author_id' => "in.({$idList})",
             'or'        => "(scheduled_at.is.null,scheduled_at.lte.{$now})",
         ]);
         $cards = $res->successful() ? $res->json() : [];
         $cards = array_map([$this, 'enrichCardWithAvatar'], $cards);
-        return array_map([$this, 'enrichCardWithReactions'], $cards);
+        $cards = array_map([$this, 'enrichCardWithReactions'], $cards);
+        return $this->sortByDisplayDate($cards);
+    }
+
+    private function sortByDisplayDate(array $cards): array
+    {
+        usort($cards, function (array $a, array $b) {
+            $tsA = strtotime($a['display_date'] ?? '') ?: strtotime($a['created_at'] ?? '') ?: 0;
+            $tsB = strtotime($b['display_date'] ?? '') ?: strtotime($b['created_at'] ?? '') ?: 0;
+            return $tsB <=> $tsA;
+        });
+        return $cards;
     }
 
     public function getScheduledCards(): array
