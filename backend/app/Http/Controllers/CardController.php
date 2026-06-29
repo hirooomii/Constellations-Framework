@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Services\SupabaseService;
+use App\Services\PushService;
 
 class CardController extends Controller
 {
-    public function __construct(private SupabaseService $supabase) {}
+    public function __construct(
+        private SupabaseService $supabase,
+        private PushService     $push,
+    ) {}
 
    public function index(Request $request): JsonResponse
     {
@@ -127,6 +131,11 @@ class CardController extends Controller
             'last_edited_at'     => null,
         ]);
 
+        // ── Notify followers only when published immediately (not scheduled) ──
+        if (empty($data['scheduled_at'])) {
+            $this->notifyFollowers($user['id'], $profile, $data['title']);
+        }
+
         return response()->json($card, 201);
     }
 
@@ -205,6 +214,11 @@ class CardController extends Controller
         }
 
         $updated = $this->supabase->updateCard($id, ['scheduled_at' => null]);
+
+        // ── Notify followers when a scheduled card is published now ────────────
+        $profile = $this->supabase->getProfile($user['id']);
+        $this->notifyFollowers($user['id'], $profile, $card['title'] ?? 'a new verse');
+
         return response()->json($updated);
     }
 
@@ -223,5 +237,28 @@ class CardController extends Controller
         $enabled = !($card['comments_enabled'] ?? true);
         $updated = $this->supabase->updateCard($id, ['comments_enabled' => $enabled]);
         return response()->json($updated);
+    }
+
+    private function notifyFollowers(string $authorId, array $profile, string $title): void
+    {
+        try {
+            $followerIds = $this->supabase->getFollowers($authorId);
+            if (empty($followerIds)) return;
+
+            $authorName   = $profile['display_name'] ?? $profile['username'] ?? 'Someone';
+            $authorAvatar = $profile['avatar_url'] ?? null;
+            $preview      = mb_substr($title, 0, 80);
+
+            foreach ($followerIds as $followerId) {
+                $this->push->sendToUser(
+                    $followerId,
+                    "{$authorName} ✨",
+                    "Posted a new verse: {$preview}",
+                    '/',
+                    'new-verse-' . $authorId,
+                    $authorAvatar
+                );
+            }
+        } catch (\Throwable) {}
     }
 }
