@@ -22,14 +22,14 @@ class PushService
         $this->webPush->setReuseVAPIDHeaders(true);
     }
 
-    public function sendToUser(string $userId, string $title, string $body, string $url = '/', string $tag = 'celestia-notif'): void
+    public function sendToUser(string $userId, string $title, string $body, string $url = '/', string $tag = 'celestia-notif', ?string $icon = null): void
     {
         if (!env('VAPID_PUBLIC_KEY')) return;
 
         $subscriptions = $this->supabase->getPushSubscriptions($userId);
         if (empty($subscriptions)) return;
 
-        $payload = json_encode(compact('title', 'body', 'url', 'tag'));
+        $payload = json_encode(array_filter(compact('title', 'body', 'url', 'tag', 'icon'), fn($v) => $v !== null));
 
         foreach ($subscriptions as $sub) {
             try {

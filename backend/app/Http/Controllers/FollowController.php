@@ -49,7 +49,8 @@ class FollowController extends Controller
                     "{$followerName} 👥",
                     'Started following you',
                     "/?profile={$username}",
-                    'follow-' . $followerId
+                    'follow-' . $followerId,
+                    $followerProfile['avatar_url'] ?? null
                 );
             } catch (\Throwable) {}
 

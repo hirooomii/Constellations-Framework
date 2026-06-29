@@ -138,10 +138,11 @@ class MessageController extends Controller
                 $notifBody  = "Sent you a message: {$preview}";
             }
 
+            $senderAvatar = $profile['avatar_url'] ?? null;
             $participants = $this->supabase->getConversationParticipants($id);
             foreach ($participants as $pid) {
                 if ($pid === $user['id']) continue;
-                $this->push->sendToUser($pid, $notifTitle, $notifBody, '/?messages=open', 'msg-' . $id);
+                $this->push->sendToUser($pid, $notifTitle, $notifBody, '/?messages=open', 'msg-' . $id, $senderAvatar);
             }
         } catch (\Throwable) {
             // Never fail the send because of push errors

@@ -54,7 +54,8 @@ class ReactionController extends Controller
                         "{$reactorName} {$emoji}",
                         'Reacted to your verses',
                         '/',
-                        'reaction-' . $id
+                        'reaction-' . $id,
+                        $reactor['avatar_url'] ?? null
                     );
                 }
             } catch (\Throwable) {}

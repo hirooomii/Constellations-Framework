@@ -56,8 +56,9 @@ class CommentController extends Controller
             'reply_to'   => $data['reply_to'] ?? null,
         ]);
 
-        $commenterName = $profile['display_name'] ?? $profile['username'] ?? 'Someone';
-        $preview       = mb_substr($data['body'], 0, 100);
+        $commenterName   = $profile['display_name'] ?? $profile['username'] ?? 'Someone';
+        $commenterAvatar = $profile['avatar_url'] ?? null;
+        $preview         = mb_substr($data['body'], 0, 100);
 
         // ── Push: reply → notify parent comment author ─────────────────────────
         if (!empty($data['parent_id'])) {
@@ -69,7 +70,8 @@ class CommentController extends Controller
                         "{$commenterName} 💬",
                         "Replied to your comment: {$preview}",
                         '/',
-                        'reply-' . $data['parent_id']
+                        'reply-' . $data['parent_id'],
+                        $commenterAvatar
                     );
                 }
             } catch (\Throwable) {}
@@ -83,7 +85,8 @@ class CommentController extends Controller
                     "{$commenterName} 📝",
                     "Commented on your verses: {$preview}",
                     '/',
-                    'comment-' . $id
+                    'comment-' . $id,
+                    $commenterAvatar
                 );
             } catch (\Throwable) {}
         }
