@@ -16,10 +16,12 @@ import NotificationBell from '@/components/NotificationBell';
 import MessagesPanel from '@/components/MessagesPanel';
 import { auth as authApi, messages as messagesApi } from '@/lib/api';
 import { signInWithProvider, extractOAuthTokens } from '@/lib/supabase';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 function HomeInner() {
   const { user, isAdmin, isRegistered, logout, oauthLogin, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
+  usePushNotifications(user);
 
   const [publishedCards, setPublishedCards] = useState<Card[]>([]);
   const [scheduledCards, setScheduledCards] = useState<Card[]>([]);

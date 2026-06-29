@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Services\SupabaseService;
+use App\Services\PushService;
 
 class CommentController extends Controller
 {
-    public function __construct(private SupabaseService $supabase) {}
+    public function __construct(
+        private SupabaseService $supabase,
+        private PushService     $push,
+    ) {}
 
     public function index(string $id): JsonResponse
     {
@@ -51,6 +55,25 @@ class CommentController extends Controller
             'parent_id'  => $data['parent_id'] ?? null,
             'reply_to'   => $data['reply_to'] ?? null,
         ]);
+
+        // ── Push notification to parent comment author ─────────────────────────
+        if (!empty($data['parent_id'])) {
+            try {
+                $parent = $this->supabase->getCommentById($data['parent_id']);
+                if ($parent && $parent['user_id'] !== $user['id']) {
+                    $replierName = $profile['display_name'] ?? $profile['username'] ?? 'Someone';
+                    $this->push->sendToUser(
+                        $parent['user_id'],
+                        "{$replierName} replied to your comment",
+                        mb_substr($data['body'], 0, 120),
+                        '/',
+                        'reply-' . $data['parent_id']
+                    );
+                }
+            } catch (\Throwable) {
+                // Silent
+            }
+        }
 
         return response()->json($comment, 201);
     }

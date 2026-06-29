@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Services\SupabaseService;
+use App\Services\PushService;
 
 class MessageController extends Controller
 {
-    public function __construct(private SupabaseService $supabase) {}
+    public function __construct(
+        private SupabaseService $supabase,
+        private PushService     $push,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -34,8 +38,8 @@ class MessageController extends Controller
     {
         $user = $request->supabaseUser;
         $data = $request->validate([
-            'name'       => 'required|string|max:80',
-            'member_ids' => 'required|array|min:1',
+            'name'         => 'required|string|max:80',
+            'member_ids'   => 'required|array|min:1',
             'member_ids.*' => 'string',
         ]);
 
@@ -68,7 +72,6 @@ class MessageController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        // Only allow removing yourself, or group creator can remove others (simplified: allow self-remove always)
         if ($userId !== $user['id']) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
@@ -98,9 +101,8 @@ class MessageController extends Controller
         ]);
         $profile = $this->supabase->getProfile($user['id']);
 
-        $replyToName    = null;
-        $replyPreview   = null;
-
+        $replyToName  = null;
+        $replyPreview = null;
         if (!empty($data['parent_id'])) {
             $parent       = $this->supabase->getMessageById($data['parent_id']);
             $replyToName  = $parent['sender_name'] ?? null;
@@ -119,6 +121,24 @@ class MessageController extends Controller
         ]);
 
         $this->supabase->markConversationRead($id, $user['id']);
+
+        // ── Push notification to other participants ───────────────────────────
+        try {
+            $conv        = $this->supabase->getConversationMeta($id);
+            $convType    = $conv['type']  ?? 'direct';
+            $convName    = $conv['name']  ?? null;
+            $senderName  = $profile['display_name'] ?? $profile['username'] ?? 'Someone';
+            $notifTitle  = $convType === 'group' ? ($convName ?? 'Group Chat') : $senderName;
+            $notifBody   = mb_substr($data['body'], 0, 120);
+            $participants = $this->supabase->getConversationParticipants($id);
+
+            foreach ($participants as $pid) {
+                if ($pid === $user['id']) continue;
+                $this->push->sendToUser($pid, $notifTitle, $notifBody, '/?messages=open', 'msg-' . $id);
+            }
+        } catch (\Throwable) {
+            // Never fail the send because of push errors
+        }
 
         return response()->json($message, 201);
     }

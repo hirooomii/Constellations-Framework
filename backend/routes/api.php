@@ -9,6 +9,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\FollowController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\PushController;
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -109,4 +110,10 @@ Route::middleware('auth.supabase')->group(function () {
     Route::get('/notifications/archive', [NotificationController::class, 'archive']);
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
     Route::post('/notifications/{id}/read', [NotificationController::class, 'readOne']);
+});
+
+// ── PUSH NOTIFICATIONS ────────────────────────────────────────────────────────
+Route::middleware('auth.supabase')->group(function () {
+    Route::post('/push/subscribe',   [PushController::class, 'subscribe']);
+    Route::post('/push/unsubscribe', [PushController::class, 'unsubscribe']);
 });

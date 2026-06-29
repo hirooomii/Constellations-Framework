@@ -839,4 +839,71 @@ class SupabaseService
             ['is_read' => true]
         );
     }
+
+    // ── PUSH SUBSCRIPTIONS ───────────────────────────────────────────────────
+
+    public function savePushSubscription(string $userId, string $endpoint, string $p256dh, string $auth): void
+    {
+        $this->httpWith(['Prefer' => 'resolution=merge-duplicates'])
+            ->post("{$this->url}/rest/v1/push_subscriptions", [
+                'user_id'  => $userId,
+                'endpoint' => $endpoint,
+                'p256dh'   => $p256dh,
+                'auth'     => $auth,
+            ]);
+    }
+
+    public function getPushSubscriptions(string $userId): array
+    {
+        $res = $this->http()->get("{$this->url}/rest/v1/push_subscriptions", [
+            'user_id' => "eq.{$userId}",
+            'select'  => 'endpoint,p256dh,auth',
+        ]);
+        return $res->successful() ? $res->json() : [];
+    }
+
+    public function deleteUserPushSubscription(string $userId, string $endpoint): void
+    {
+        $this->http()->delete(
+            "{$this->url}/rest/v1/push_subscriptions?user_id=eq.{$userId}&endpoint=eq." . urlencode($endpoint)
+        );
+    }
+
+    public function deletePushSubscriptionByEndpoint(string $endpoint): void
+    {
+        $this->http()->delete(
+            "{$this->url}/rest/v1/push_subscriptions?endpoint=eq." . urlencode($endpoint)
+        );
+    }
+
+    public function getConversationParticipants(string $convId): array
+    {
+        $res = $this->http()->get("{$this->url}/rest/v1/conversation_participants", [
+            'conversation_id' => "eq.{$convId}",
+            'select'          => 'user_id',
+        ]);
+        return $res->successful() ? array_column($res->json(), 'user_id') : [];
+    }
+
+    public function getCommentById(string $id): ?array
+    {
+        $res = $this->http()->get("{$this->url}/rest/v1/comments", [
+            'id'     => "eq.{$id}",
+            'select' => 'id,user_id,author,body,card_id',
+            'limit'  => 1,
+        ]);
+        $data = $res->json();
+        return (!empty($data) && is_array($data)) ? $data[0] : null;
+    }
+
+    public function getConversationMeta(string $convId): ?array
+    {
+        $res = $this->http()->get("{$this->url}/rest/v1/conversations", [
+            'id'     => "eq.{$convId}",
+            'select' => 'id,type,name',
+            'limit'  => 1,
+        ]);
+        $data = $res->json();
+        return (!empty($data) && is_array($data)) ? $data[0] : null;
+    }
 }
